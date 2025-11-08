@@ -1,0 +1,46 @@
+table_name: products
+description: Product catalog with pricing and inventory information
+fields:
+  - name: product_id
+    type: integer
+    description: Unique product identifier
+    nullable: false
+    primary_key: true
+
+  - name: product_name
+    type: string
+    description: Name of the product
+    nullable: false
+    primary_key: false
+
+  - name: category
+    type: string
+    description: Product category (e.g., Electronics, Clothing, Food)
+    nullable: true
+    primary_key: false
+
+  - name: price
+    type: float
+    description: Product price in USD
+    nullable: false
+    primary_key: false
+
+  - name: stock_quantity
+    type: integer
+    description: Number of items available in stock
+    nullable: false
+    primary_key: false
+
+  - name: in_stock
+    type: boolean
+    description: Whether the product is currently available
+    nullable: false
+    primary_key: false
+
+  - name: last_updated
+    type: date
+    description: Date when product information was last updated
+    nullable: true
+    primary_key: false
+    format: "%m/%d/%Y"  # e.g., "11/04/2025" for November 4, 2025
+
