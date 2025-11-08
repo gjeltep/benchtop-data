@@ -12,6 +12,7 @@ from ..embeddings import ChromaRepository
 from ..query import QueryEngine
 from ..exceptions import ValidationError, ConfigurationError
 from ..logging_config import get_logger
+from ..config import config
 
 logger = get_logger(__name__)
 
@@ -23,39 +24,43 @@ class DataPipeline:
         self,
         db_path: Optional[str] = None,
         chroma_path: Optional[str] = None,
-        ollama_model: str = "mistral",
-        ollama_base_url: str = "http://localhost:11434",
-        context_window: int = 32768,
-        temperature: float = 0.1,
-        similarity_top_k: int = 5,
-        embed_batch_size: int = 32,
+        ollama_model: Optional[str] = None,
+        ollama_base_url: Optional[str] = None,
+        context_window: Optional[int] = None,
+        temperature: Optional[float] = None,
+        similarity_top_k: Optional[int] = None,
+        embed_batch_size: Optional[int] = None,
         storage_repo: Optional[StorageRepository] = None,
     ):
         """
         Initialize the data pipeline.
 
         Args:
-            db_path: Path to DuckDB file (None = in-memory)
-            chroma_path: Path to Chroma persistence directory (None = in-memory)
-            ollama_model: Ollama model name to use
-            ollama_base_url: Ollama API base URL
-            context_window: Maximum context window size for the LLM
-            temperature: Sampling temperature
-            similarity_top_k: Number of similar chunks to retrieve for vector search
-            embed_batch_size: Number of texts to batch per embedding API call (default: 32)
+            db_path: Path to DuckDB file (None = in-memory, uses config default if None)
+            chroma_path: Path to Chroma persistence directory (None = in-memory, uses config default if None)
+            ollama_model: Ollama model name to use (uses config default if None)
+            ollama_base_url: Ollama API base URL (uses config default if None)
+            context_window: Maximum context window size for the LLM (uses config default if None)
+            temperature: Sampling temperature (uses config default if None)
+            similarity_top_k: Number of similar chunks to retrieve for vector search (uses config default if None)
+            embed_batch_size: Number of texts to batch per embedding API call (uses config default if None)
             storage_repo: Optional storage repository (constructor DI)
         """
-        self.storage_repo = storage_repo or DuckDBRepository(db_path)
-        self.embeddings_repo = ChromaRepository(chroma_path)
+        self.storage_repo = storage_repo or DuckDBRepository(db_path or config.db_path)
+        self.embeddings_repo = ChromaRepository(chroma_path or config.chroma_path)
 
-        # Query engine with config
+        # Query engine with config defaults
         self.query_engine = QueryEngine(
-            model_name=ollama_model,
-            base_url=ollama_base_url,
-            context_window=context_window,
-            temperature=temperature,
-            similarity_top_k=similarity_top_k,
-            embed_batch_size=embed_batch_size,
+            model_name=ollama_model or config.llm_model,
+            base_url=ollama_base_url or config.ollama_url,
+            embed_model_name=config.embed_model,
+            context_window=context_window if context_window is not None else config.context_window,
+            temperature=temperature if temperature is not None else config.temperature,
+            similarity_top_k=similarity_top_k if similarity_top_k is not None else config.similarity_top_k,
+            embed_batch_size=embed_batch_size if embed_batch_size is not None else config.embed_batch_size,
+            request_timeout=config.request_timeout,
+            num_output=config.num_output,
+            chat_history_token_limit=config.chat_history_token_limit,
         )
 
         # State
@@ -212,25 +217,28 @@ class DataPipeline:
 def create_pipeline(
     db_path: Optional[str] = None,
     chroma_path: Optional[str] = None,
-    ollama_model: str = "mistral",
-    ollama_base_url: str = "http://localhost:11434",
-    context_window: int = 32768,
-    temperature: float = 0.2,
-    similarity_top_k: int = 5,
-    embed_batch_size: int = 32,
+    ollama_model: Optional[str] = None,
+    ollama_base_url: Optional[str] = None,
+    context_window: Optional[int] = None,
+    temperature: Optional[float] = None,
+    similarity_top_k: Optional[int] = None,
+    embed_batch_size: Optional[int] = None,
 ) -> DataPipeline:
     """
     Factory function to create a pipeline instance.
 
+    All parameters default to None, which means they will use values from the config module.
+    This allows the config module to be the single source of truth for defaults.
+
     Args:
-        db_path: Path to DuckDB file (None = in-memory)
-        chroma_path: Path to Chroma persistence directory (None = in-memory)
-        ollama_model: Ollama model name to use
-        ollama_base_url: Ollama API base URL
-        context_window: Maximum context window size for the LLM
-        temperature: Sampling temperature (0.0 = deterministic, 1.0 = creative)
-        similarity_top_k: Number of similar chunks to retrieve for vector search
-        embed_batch_size: Number of texts to batch per embedding API call (default: 32)
+        db_path: Path to DuckDB file (None = uses config default, typically in-memory)
+        chroma_path: Path to Chroma persistence directory (None = uses config default, typically in-memory)
+        ollama_model: Ollama model name to use (None = uses config default)
+        ollama_base_url: Ollama API base URL (None = uses config default)
+        context_window: Maximum context window size for the LLM (None = uses config default)
+        temperature: Sampling temperature (None = uses config default, 0.0 = deterministic, 1.0 = creative)
+        similarity_top_k: Number of similar chunks to retrieve for vector search (None = uses config default)
+        embed_batch_size: Number of texts to batch per embedding API call (None = uses config default)
 
     Returns:
         Configured DataPipeline instance

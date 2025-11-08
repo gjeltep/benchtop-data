@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from llama_index.core import VectorStoreIndex, StorageContext
 from llama_index.core.schema import Document
 from llama_index.llms.ollama import Ollama
@@ -46,6 +46,7 @@ When answering questions about data, always include relevant context like produc
         enable_chat_history: bool = True,
         chat_history_token_limit: int = 3000,
         embed_batch_size: int = 32,  # Batch size for embedding generation
+        request_timeout: float = 180.0,  # Request timeout in seconds
     ):
         """
         Initialize query engine.
@@ -53,7 +54,7 @@ When answering questions about data, always include relevant context like produc
         Args:
             model_name: Name of the Ollama model to use
             base_url: Base URL for Ollama API
-            embed_model_name: Name of the embedding model (defaults to model_name)
+            embed_model_name: Name of the embedding model (defaults to model_name if not provided)
             context_window: Maximum context window size for the LLM
             num_output: Maximum tokens to generate
             temperature: Sampling temperature (0.0 = deterministic, 1.0 = creative)
@@ -62,6 +63,7 @@ When answering questions about data, always include relevant context like produc
             enable_chat_history: Whether to maintain conversation history
             chat_history_token_limit: Max tokens to keep in chat history
             embed_batch_size: Number of texts to batch per embedding API call (default: 32)
+            request_timeout: Request timeout in seconds for Ollama API calls
         """
         self.model_name = model_name
         self.base_url = base_url
@@ -73,7 +75,7 @@ When answering questions about data, always include relevant context like produc
         self.llm = Ollama(
             model=model_name,
             base_url=base_url,
-            request_timeout=60.0,
+            request_timeout=request_timeout,
             context_window=context_window,
             num_output=num_output,
             temperature=temperature,
@@ -192,7 +194,7 @@ Current question: {question}"""
 
         return question
 
-    def ask(self, question: str, return_metadata: bool = False) -> str | Dict[str, Any]:
+    def ask(self, question: str, return_metadata: bool = False) -> Union[str, Dict[str, Any]]:
         """
         Ask a natural language question over the data.
 

@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from data_pipeline import create_pipeline
 from data_pipeline.logging_config import setup_logging, get_logger
+from data_pipeline.config import config
 
 
 def main():
@@ -27,13 +28,16 @@ def main():
         help="Path to Chroma persistence directory (default: in-memory)",
     )
     parser.add_argument(
-        "--model", type=str, default="mistral", help="Ollama model name (default: mistral)"
+        "--model",
+        type=str,
+        default=config.llm_model,
+        help=f"Ollama model name (default: {config.llm_model})",
     )
     parser.add_argument(
         "--ollama-url",
         type=str,
-        default="http://localhost:11434",
-        help="Ollama API base URL (default: http://localhost:11434)",
+        default=config.ollama_url,
+        help=f"Ollama API base URL (default: {config.ollama_url})",
     )
     parser.add_argument("--query", type=str, help="Ask a question and exit")
     parser.add_argument(

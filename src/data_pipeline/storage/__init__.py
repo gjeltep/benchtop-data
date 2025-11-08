@@ -11,6 +11,9 @@ import pandas as pd
 from sqlalchemy import create_engine, Engine
 import tempfile
 import os
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class StorageRepository(ABC):
@@ -64,13 +67,7 @@ class DuckDBRepository(StorageRepository):
 
     def query(self, sql: str) -> pd.DataFrame:
         """Execute a SQL query and return results as DataFrame."""
-        # Use Arrow format for better type preservation (especially for timestamps)
-        try:
-            arrow_table = self.conn.execute(sql).arrow()
-            return arrow_table.to_pandas()
-        except (ImportError, AttributeError):
-            # Fallback to standard df() if Arrow is unavailable
-            return self.conn.execute(sql).df()
+        return self.conn.execute(sql).df()
 
     def table_exists(self, table_name: str) -> bool:
         """Check if a table exists."""

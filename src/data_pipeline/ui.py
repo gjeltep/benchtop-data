@@ -4,6 +4,11 @@ import pandas as pd
 import tempfile
 import yaml
 from data_pipeline import create_pipeline
+from data_pipeline.config import config
+from data_pipeline.logging_config import setup_logging
+
+# Initialize logging with HTTP log suppression
+setup_logging(suppress_http_logs=True)
 
 @st.cache_data
 def load_preview(file_bytes: bytes, filename: str) -> pd.DataFrame:
@@ -27,18 +32,30 @@ def main():
         st.session_state.table_name = None
     if "confirm_clear" not in st.session_state:
         st.session_state.confirm_clear = False
+    if "ollama_model" not in st.session_state:
+        st.session_state.ollama_model = config.llm_model
+    if "ollama_url" not in st.session_state:
+        st.session_state.ollama_url = config.ollama_url
 
     # Sidebar for configuration
     with st.sidebar:
         st.header("⚙️ Configuration")
 
         ollama_model = st.text_input(
-            "Ollama Model", value="mistral", help="Name of the Ollama model to use"
+            "Ollama Model",
+            value=st.session_state.ollama_model,
+            help="Name of the Ollama model to use",
+            key="ollama_model_input",
         )
+        st.session_state.ollama_model = ollama_model
 
         ollama_url = st.text_input(
-            "Ollama URL", value="http://localhost:11434", help="Base URL for Ollama API"
+            "Ollama URL",
+            value=st.session_state.ollama_url,
+            help="Base URL for Ollama API",
+            key="ollama_url_input",
         )
+        st.session_state.ollama_url = ollama_url
 
         use_persistent = st.checkbox(
             "Persist Data", value=False, help="Save database and embeddings to disk"
@@ -117,8 +134,8 @@ def main():
                         pipeline = create_pipeline(
                             db_path=db_path,
                             chroma_path=chroma_path,
-                            ollama_model=ollama_model,
-                            ollama_base_url=ollama_url,
+                            ollama_model=st.session_state.ollama_model,
+                            ollama_base_url=st.session_state.ollama_url,
                         )
 
                         # Process dataset
@@ -243,12 +260,12 @@ def main():
                                     if metadata.get("error"):
                                         st.error(f"Error: {metadata['error']}")
 
-                                    st.caption(f"Model: {ollama_model}")
+                                    st.caption(f"Model: {st.session_state.ollama_model}")
                                 else:
-                                    st.code(f"Model: {ollama_model}\nQuery: {query}")
+                                    st.code(f"Model: {st.session_state.ollama_model}\nQuery: {query}")
 
                         except ConnectionError:
-                            st.error(f"❌ Cannot connect to Ollama at {ollama_url}. Is it running?")
+                            st.error(f"❌ Cannot connect to Ollama at {st.session_state.ollama_url}. Is it running?")
                         except KeyError as e:
                             st.error(f"❌ Missing required field: {str(e)}")
                         except Exception as e:
@@ -267,7 +284,6 @@ def main():
                 # Get dataset info
                 table_name = st.session_state.table_name
                 df = pipeline.storage_repo.query(f"SELECT * FROM {table_name}")
-
 
                 st.subheader(f"Dataset: {table_name}")
                 st.metric("Total Rows", len(df))
