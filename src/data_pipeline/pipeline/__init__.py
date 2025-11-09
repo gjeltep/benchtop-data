@@ -31,6 +31,7 @@ class DataPipeline:
         similarity_top_k: Optional[int] = None,
         embed_batch_size: Optional[int] = None,
         storage_repo: Optional[StorageRepository] = None,
+        enable_reasoning_logs: Optional[bool] = None,
     ):
         """
         Initialize the data pipeline.
@@ -45,6 +46,7 @@ class DataPipeline:
             similarity_top_k: Number of similar chunks to retrieve for vector search (uses config default if None)
             embed_batch_size: Number of texts to batch per embedding API call (uses config default if None)
             storage_repo: Optional storage repository (constructor DI)
+            enable_reasoning_logs: Enable logging of reasoning tokens from reasoning-based LLMs (uses config default if None)
         """
         self.storage_repo = storage_repo or DuckDBRepository(db_path or config.db_path)
         self.embeddings_repo = ChromaRepository(chroma_path or config.chroma_path)
@@ -61,6 +63,7 @@ class DataPipeline:
             request_timeout=config.request_timeout,
             num_output=config.num_output,
             chat_history_token_limit=config.chat_history_token_limit,
+            enable_reasoning_logs=enable_reasoning_logs if enable_reasoning_logs is not None else config.enable_reasoning_logs,
         )
 
         # State
@@ -223,6 +226,7 @@ def create_pipeline(
     temperature: Optional[float] = None,
     similarity_top_k: Optional[int] = None,
     embed_batch_size: Optional[int] = None,
+    enable_reasoning_logs: Optional[bool] = None,
 ) -> DataPipeline:
     """
     Factory function to create a pipeline instance.
@@ -239,6 +243,7 @@ def create_pipeline(
         temperature: Sampling temperature (None = uses config default, 0.0 = deterministic, 1.0 = creative)
         similarity_top_k: Number of similar chunks to retrieve for vector search (None = uses config default)
         embed_batch_size: Number of texts to batch per embedding API call (None = uses config default)
+        enable_reasoning_logs: Enable logging of reasoning tokens from reasoning-based LLMs (None = uses config default)
 
     Returns:
         Configured DataPipeline instance
@@ -252,4 +257,5 @@ def create_pipeline(
         temperature=temperature,
         similarity_top_k=similarity_top_k,
         embed_batch_size=embed_batch_size,
+        enable_reasoning_logs=enable_reasoning_logs,
     )

@@ -1,7 +1,8 @@
-from typing import Optional, List, Dict, Any, Union
-from llama_index.core import VectorStoreIndex, StorageContext
+from typing import Optional, List, Dict, Any, Union, Tuple
+import asyncio
+from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.core.schema import Document
-from llama_index.llms.ollama import Ollama
+from llama_index.core.callbacks import CallbackManager
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.memory import ChatMemoryBuffer
@@ -9,27 +10,43 @@ from llama_index.core.llms import ChatMessage, MessageRole
 from ..storage import StorageRepository
 from ..exceptions import QueryError
 from ..logging_config import get_logger
-from .initialization import initialize_sql_engine, initialize_router
+from .setup import initialize_sql_engine, initialize_router_workflow
+from .llm import ReasoningTokenHandler, LLMFactory, EngineType
 
 logger = get_logger(__name__)
 
 
 class QueryEngine:
     """
-    Hybrid query engine using LlamaIndex and Ollama.
+    Hybrid query engine using LlamaIndex Workflows and Ollama.
 
-    Uses LlamaIndex RouterQueryEngine for automatic routing between:
-    - SQL engine for analytical queries (counts, aggregations, calculations)
-    - Vector engine for semantic queries (similarity, descriptions, context)
+    Architecture:
+    - Uses LlamaIndex RouterQueryEngineWorkflow (native Workflow pattern) for routing:
+      * SQL engine: Analytical queries (counts, aggregations, calculations)
+      * Vector engine: Semantic queries (similarity, descriptions, context)
+
+    - When enable_reasoning_logs=True:
+      * Uses ReasoningTokenHandler to capture thinking_delta tokens
+      * Tokens are captured directly from streaming responses in workflow steps
+      * No wrapper needed - native LlamaIndex workflow pattern
+
+    This design uses native LlamaIndex Workflows for better observability
+    and reasoning token capture without custom abstractions.
     """
 
-    DEFAULT_SYSTEM_PROMPT = """You are a helpful data analysis assistant. Your role is to:
+    DEFAULT_SYSTEM_PROMPT = """You are a helpful data analysis assistant with direct access to the database and query results.
+
+Your role is to:
 - Provide accurate, concise answers based on the available data
-- Explain your reasoning when performing calculations
 - Use specific numbers, names, and details from the data (not just IDs)
-- Admit when you don't have enough information to answer
 - Format numerical values clearly (e.g., currency, percentages)
-- Be factual and avoid speculation
+- Be factual and direct - present data clearly without speculating about user intent
+
+Important:
+- You HAVE access to the database - queries are executed automatically and results are provided
+- Focus your reasoning on the task at hand, not on questioning your capabilities
+- Don't speculate about user needs or use cases - just present the data clearly
+- When synthesizing responses, focus on data presentation, not meta-analysis
 
 When answering questions about data, always include relevant context like product names, categories, or other identifying information, not just numeric IDs."""
 
@@ -47,6 +64,7 @@ When answering questions about data, always include relevant context like produc
         chat_history_token_limit: int = 3000,
         embed_batch_size: int = 32,  # Batch size for embedding generation
         request_timeout: float = 180.0,  # Request timeout in seconds
+        enable_reasoning_logs: bool = True,  # Enable logging of reasoning tokens
     ):
         """
         Initialize query engine.
@@ -64,6 +82,8 @@ When answering questions about data, always include relevant context like produc
             chat_history_token_limit: Max tokens to keep in chat history
             embed_batch_size: Number of texts to batch per embedding API call (default: 32)
             request_timeout: Request timeout in seconds for Ollama API calls
+            enable_reasoning_logs: If True, logs reasoning tokens (thinking_delta) to console.
+                Works with any reasoning-based LLM that outputs thinking tokens via Ollama.
         """
         self.model_name = model_name
         self.base_url = base_url
@@ -71,17 +91,20 @@ When answering questions about data, always include relevant context like produc
         self.similarity_top_k = similarity_top_k
         self.system_prompt = system_prompt or self.DEFAULT_SYSTEM_PROMPT
         self.enable_chat_history = enable_chat_history
+        self.enable_reasoning_logs = enable_reasoning_logs
 
-        self.llm = Ollama(
-            model=model_name,
+        # Set up reasoning handler if enabled
+        self.reasoning_handler = self._setup_reasoning_handler() if enable_reasoning_logs else None
+
+        # Create LLM using factory pattern
+        self.llm = LLMFactory.create(
+            model_name=model_name,
             base_url=base_url,
+            reasoning_handler=self.reasoning_handler,
             request_timeout=request_timeout,
             context_window=context_window,
             num_output=num_output,
             temperature=temperature,
-            additional_kwargs={
-                "num_ctx": context_window,  # Ollama-specific parameter
-            },
             system_prompt=self.system_prompt,
         )
 
@@ -100,7 +123,19 @@ When answering questions about data, always include relevant context like produc
 
         # Query engines
         self.index: Optional[VectorStoreIndex] = None
-        self.router_query_engine = None
+        self.router_workflow = None
+        self.query_engine_tools = None
+        self.summarizer = None
+
+    def _setup_reasoning_handler(self) -> ReasoningTokenHandler:
+        """Set up reasoning token handler and register with LlamaIndex callbacks."""
+        handler = ReasoningTokenHandler(verbose=True)
+        existing_handlers = [
+            h for h in (Settings.callback_manager.handlers if Settings.callback_manager else [])
+            if not isinstance(h, ReasoningTokenHandler)
+        ]
+        Settings.callback_manager = CallbackManager(existing_handlers + [handler])
+        return handler
 
     def index_texts(
         self,
@@ -154,20 +189,22 @@ When answering questions about data, always include relevant context like produc
             show_progress=True,
         )
 
-        # SQL query engine
+        # SQL query engine (streaming enabled for workflow-based router)
         sql_query_engine = initialize_sql_engine(
             storage_repo=storage_repo,
             table_name=table_name,
             llm=self.llm,
             embed_model=self.embed_model,
+            streaming=True,  # Workflows support streaming natively
         )
 
-        # Initialize router with both SQL and vector engines
-        self.router_query_engine = initialize_router(
+        # Initialize workflow-based router (native LlamaIndex pattern)
+        self.router_workflow, self.query_engine_tools, self.summarizer = initialize_router_workflow(
             index=self.index,
             llm=self.llm,
             similarity_top_k=self.similarity_top_k,
             sql_query_engine=sql_query_engine,
+            reasoning_handler=self.reasoning_handler,
         )
 
     def _build_query_with_context(self, question: str) -> str:
@@ -198,10 +235,13 @@ Current question: {question}"""
         """
         Ask a natural language question over the data.
 
-        Uses LlamaIndex RouterQueryEngine for automatic routing between SQL and vector engines.
+        Uses LlamaIndex RouterQueryEngineWorkflow for automatic routing between SQL and vector engines.
         Routing decisions are logged to console when verbose mode is enabled.
 
         Chat history is included as context to enhance responses.
+
+        If enable_reasoning_logs is True, captures and logs reasoning tokens (thinking_delta)
+        from reasoning-based LLMs via workflow streaming.
 
         Args:
             question: Natural language question
@@ -210,22 +250,59 @@ Current question: {question}"""
         Returns:
             Answer string, or dict with 'answer' and 'metadata' if return_metadata=True
         """
-        if not self.router_query_engine:
+        if not self.router_workflow:
             raise QueryError("Query engine not initialized. Call index_texts() first.")
 
-        metadata = {"question": question, "sql_query": None, "error": None}
+        metadata = {"question": question, "sql_query": None, "error": None, "reasoning": None}
+
+        # Reset reasoning handler for new query
+        if self.reasoning_handler:
+            self.reasoning_handler.reset()
 
         # Build query with chat history context
         enhanced_query = self._build_query_with_context(question)
 
-        # Route
+        # Use workflow-based router (native LlamaIndex pattern)
         try:
-            response = self.router_query_engine.query(enhanced_query)
-            answer = str(response)
+            # Run workflow asynchronously
+            # Streamlit uses Tornado (not asyncio), so we can use asyncio.run() directly
+            # If an event loop exists, nest_asyncio will handle it (applied at import if needed)
+            async def run_workflow():
+                return await self.router_workflow.run(
+                    query=enhanced_query,
+                    # Don't pass LLM, summarizer, or tools - they're stored as instance vars to avoid deepcopy issues
+                    select_multi=False,  # Select single engine
+                )
 
-            # Hacky but... capture SQL query if available
-            if hasattr(response, "metadata") and isinstance(response.metadata, dict):
-                metadata["sql_query"] = response.metadata.get("sql_query")
+            # nest_asyncio is applied in ui.py before any imports
+            # This allows asyncio.run() to work even if an event loop exists
+            result = asyncio.run(run_workflow())
+
+            answer = str(result)
+
+            # Extract which engine was used
+            # The workflow stores this as an instance variable
+            selected_engine_index = self.router_workflow.selected_engine_index
+
+            # Set engine type in metadata
+            if selected_engine_index is not None:
+                try:
+                    engine_type = EngineType(selected_engine_index)
+                    metadata["engine_type"] = engine_type.name_lower
+                except Exception:
+                    metadata["engine_type"] = "unknown"
+                metadata["selected_engine_index"] = selected_engine_index
+
+            # Get captured reasoning tokens if enabled
+            if self.enable_reasoning_logs and self.reasoning_handler:
+                reasoning = self.reasoning_handler.get_reasoning()
+                if reasoning:
+                    metadata["reasoning"] = reasoning
+                    # Print separator if we captured reasoning
+                    if self.reasoning_handler.verbose:
+                        print("\n" + "=" * 60)
+                        print("ANSWER:")
+                        print("=" * 60)
 
         except Exception as e:
             logger.error(f"Query failed: {e}", exc_info=True)
@@ -238,6 +315,7 @@ Current question: {question}"""
             self.chat_memory.put(ChatMessage(role=MessageRole.ASSISTANT, content=answer))
 
         return {"answer": answer, "metadata": metadata} if return_metadata else answer
+
 
     def get_chat_history(self) -> List[Dict[str, str]]:
         """

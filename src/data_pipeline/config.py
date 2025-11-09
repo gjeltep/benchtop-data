@@ -66,6 +66,11 @@ class Config:
         default_factory=lambda: int(os.getenv("DATA_PIPELINE_EMBED_BATCH_SIZE", "64"))
     )
 
+    # Reasoning/Logging Parameters
+    enable_reasoning_logs: bool = field(
+        default_factory=lambda: os.getenv("DATA_PIPELINE_ENABLE_REASONING_LOGS", "false").lower() == "true"
+    )
+
     # Database Configuration
     db_path: Optional[str] = field(
         default_factory=lambda: os.getenv("DATA_PIPELINE_DB_PATH")

@@ -1,3 +1,8 @@
+# CRITICAL: Apply nest_asyncio FIRST, before any other imports
+# This must happen before Streamlit or any async code is imported
+import nest_asyncio
+nest_asyncio.apply()
+
 import streamlit as st
 from pathlib import Path
 import pandas as pd
@@ -20,7 +25,7 @@ def load_preview(file_bytes: bytes, filename: str) -> pd.DataFrame:
 def main():
     st.set_page_config(page_title="Data Pipeline", page_icon="📊", layout="wide")
 
-    st.title("📊 AI Data Analysis Pipeline")
+    st.title("📊 Benchtop Data")
     st.markdown("Upload a dataset and schema, then ask natural language questions about your data.")
 
     # Initialize session state
@@ -36,6 +41,11 @@ def main():
         st.session_state.ollama_model = config.llm_model
     if "ollama_url" not in st.session_state:
         st.session_state.ollama_url = config.ollama_url
+    # Invalidate existing pipeline if code version changed (ensures new workflow logic is applied)
+    existing_pipeline = st.session_state.get("pipeline")
+    if existing_pipeline is None:
+        st.session_state.processed = False
+        st.session_state.table_name = None
 
     # Sidebar for configuration
     with st.sidebar:
@@ -136,6 +146,7 @@ def main():
                             chroma_path=chroma_path,
                             ollama_model=st.session_state.ollama_model,
                             ollama_base_url=st.session_state.ollama_url,
+                            enable_reasoning_logs=True,  # Enable thinking logs for Streamlit UI
                         )
 
                         # Process dataset
@@ -249,12 +260,23 @@ def main():
                             # Show query execution details
                             with st.expander("🔍 Query Details", expanded=False):
                                 if metadata:
+                                    # Show engine type (now explicitly tracked)
+                                    engine_type = metadata.get("engine_type", "unknown")
+                                    if engine_type == "sql":
+                                        st.info("🔧 SQL Engine Used")
+                                    elif engine_type == "vector":
+                                        st.info("🔍 Vector Search Engine Used")
+                                    else:
+                                        st.info(f"🔧 Engine: {engine_type}")
+
                                     # Show SQL query if captured
                                     if metadata.get("sql_query"):
-                                        st.info("🔧 SQL Engine Used")
                                         st.code(metadata["sql_query"], language="sql")
-                                    else:
-                                        st.info("🔍 Vector Search Engine Used")
+
+                                    # Show reasoning tokens if captured
+                                    if metadata.get("reasoning"):
+                                        with st.expander("🧠 Model Reasoning", expanded=False):
+                                            st.text(metadata["reasoning"])
 
                                     # Show errors if any
                                     if metadata.get("error"):

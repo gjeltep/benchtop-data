@@ -41,6 +41,11 @@ def main():
     )
     parser.add_argument("--query", type=str, help="Ask a question and exit")
     parser.add_argument(
+        "--enable-reasoning-logs",
+        action="store_true",
+        help="Enable logging of reasoning tokens from reasoning-based LLMs (e.g., DeepSeek R1)",
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -73,6 +78,7 @@ def main():
             chroma_path=args.chroma_path,
             ollama_model=args.model,
             ollama_base_url=args.ollama_url,
+            enable_reasoning_logs=args.enable_reasoning_logs,
         )
 
         logger.info("Processing dataset...")
@@ -90,12 +96,16 @@ def main():
 
                 metadata = result.get("metadata", {})
 
-                # Show SQL query if captured
-                if metadata.get("sql_query"):
+                # Show which engine was used
+                engine_type = metadata.get("engine_type")
+                if engine_type == "sql":
                     logger.info("SQL Engine Used")
-                    logger.info(f"Query: {metadata['sql_query']}")
-                else:
+                    if metadata.get("sql_query"):
+                        logger.info(f"Query: {metadata['sql_query']}")
+                elif engine_type == "vector":
                     logger.info("Vector Search Engine Used")
+                else:
+                    logger.info("Unknown Engine Used")
 
                 # Show error if occurred
                 if metadata.get("error"):
