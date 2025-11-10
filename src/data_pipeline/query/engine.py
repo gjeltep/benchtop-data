@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any, Union, Tuple
+from typing import Optional, List, Dict, Any, Union
 import asyncio
 from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.core.schema import Document
@@ -92,6 +92,10 @@ When answering questions about data, always include relevant context like produc
         self.system_prompt = system_prompt or self.DEFAULT_SYSTEM_PROMPT
         self.enable_chat_history = enable_chat_history
         self.enable_reasoning_logs = enable_reasoning_logs
+        self.request_timeout = request_timeout
+        self.context_window = context_window
+        self.num_output = num_output
+        self.temperature = temperature
 
         # Set up reasoning handler if enabled
         self.reasoning_handler = self._setup_reasoning_handler() if enable_reasoning_logs else None
@@ -190,10 +194,22 @@ When answering questions about data, always include relevant context like produc
         )
 
         # SQL query engine (streaming enabled for workflow-based router)
+        # Use non-reasoning LLM with temperature=0.0 for deterministic SQL generation
+        sql_llm = LLMFactory.create(
+            model_name=self.model_name,
+            base_url=self.base_url,
+            reasoning_handler=None,
+            request_timeout=self.request_timeout,
+            context_window=self.context_window,
+            num_output=self.num_output,
+            temperature=self.temperature,
+            system_prompt=None,  # SQL engine has its own prompt
+        )
+
         sql_query_engine = initialize_sql_engine(
             storage_repo=storage_repo,
             table_name=table_name,
-            llm=self.llm,
+            llm=sql_llm,  # Use non-reasoning LLM
             embed_model=self.embed_model,
             streaming=True,  # Workflows support streaming natively
         )
@@ -208,28 +224,21 @@ When answering questions about data, always include relevant context like produc
         )
 
     def _build_query_with_context(self, question: str) -> str:
-        """Build query with chat history context to avoid recursive buildup."""
-        if not self.chat_memory or not self.enable_chat_history:
+        """Build query with chat history context."""
+        if not (self.chat_memory and self.enable_chat_history):
             return question
 
         messages = self.chat_memory.get_all()
         if not messages:
             return question
 
-        # Include last 3 exchanges (6 messages) - arbitrary but keeps context manageable
-        context_parts = []
-        for msg in messages[-6:]:
-            role = "User" if msg.role == MessageRole.USER else "Assistant"
-            context_parts.append(f"{role}: {msg.content}")
+        # Include last 3 exchanges (6 messages)
+        context_parts = [
+            f"{'User' if msg.role == MessageRole.USER else 'Assistant'}: {msg.content}"
+            for msg in messages[-6:]
+        ]
 
-        if context_parts:
-            context = "\n".join(context_parts)
-            return f"""Previous conversation:
-{context}
-
-Current question: {question}"""
-
-        return question
+        return f"Previous conversation:\n{chr(10).join(context_parts)}\n\nCurrent question: {question}" if context_parts else question
 
     def ask(self, question: str, return_metadata: bool = False) -> Union[str, Dict[str, Any]]:
         """
@@ -278,17 +287,18 @@ Current question: {question}"""
             # This allows asyncio.run() to work even if an event loop exists
             result = asyncio.run(run_workflow())
 
-            answer = str(result)
+            # Extract answer from StopEvent result (which is a Response object)
+            # Following LlamaIndex best practices: StopEvent.result is the Response
+            if hasattr(result, 'result'):
+                answer = str(result.result) if result.result else str(result)
+            else:
+                answer = str(result)
 
-            # Extract which engine was used
-            # The workflow stores this as an instance variable
+            # Extract metadata from workflow
             selected_engine_index = self.router_workflow.selected_engine_index
-
-            # Set engine type in metadata
             if selected_engine_index is not None:
                 try:
-                    engine_type = EngineType(selected_engine_index)
-                    metadata["engine_type"] = engine_type.name_lower
+                    metadata["engine_type"] = EngineType(selected_engine_index).name_lower
                 except Exception:
                     metadata["engine_type"] = "unknown"
                 metadata["selected_engine_index"] = selected_engine_index
@@ -298,7 +308,6 @@ Current question: {question}"""
                 reasoning = self.reasoning_handler.get_reasoning()
                 if reasoning:
                     metadata["reasoning"] = reasoning
-                    # Print separator if we captured reasoning
                     if self.reasoning_handler.verbose:
                         print("\n" + "=" * 60)
                         print("ANSWER:")

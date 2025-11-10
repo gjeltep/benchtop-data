@@ -145,8 +145,7 @@ def main():
                             db_path=db_path,
                             chroma_path=chroma_path,
                             ollama_model=st.session_state.ollama_model,
-                            ollama_base_url=st.session_state.ollama_url,
-                            enable_reasoning_logs=True,  # Enable thinking logs for Streamlit UI
+                            ollama_base_url=st.session_state.ollama_url
                         )
 
                         # Process dataset

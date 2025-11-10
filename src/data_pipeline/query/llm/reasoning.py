@@ -109,33 +109,13 @@ class ReasoningTokenHandler(BaseCallbackHandler):
 
     def log_complete_reasoning(self) -> None:
         """
-        Log the complete accumulated reasoning as a clean block.
-        Called at the end of each LLM call.
+        Mark reasoning as complete and reset for next LLM call.
+        Reasoning tokens are still available via get_reasoning() but not logged as blocks.
         """
         # Flush any remaining buffer
         self._flush_buffer()
 
-        if self.current_reasoning:
-            if self.verbose:
-                # In verbose mode: print to stderr only (for console viewing)
-                print("\n" + "-" * 70, file=sys.stderr)
-                print("COMPLETE REASONING:", file=sys.stderr)
-                print("-" * 70, file=sys.stderr)
-                print(self.current_reasoning, file=sys.stderr)
-                print("-" * 70 + "\n", file=sys.stderr)
-            else:
-                # In non-verbose mode: log via logger only (for log files)
-                logger.info("=" * 70)
-                logger.info("MODEL REASONING (COMPLETE):")
-                logger.info("=" * 70)
-                # Log in chunks to avoid extremely long log lines
-                chunk_size = 1000
-                for i in range(0, len(self.current_reasoning), chunk_size):
-                    chunk = self.current_reasoning[i:i + chunk_size]
-                    logger.info(f"[THINKING BLOCK]\n{chunk}")
-                logger.info("=" * 70)
-
-        # Reset for next LLM call
+        # Reset for next LLM call (reasoning still available via get_reasoning())
         self._reasoning_started = False
 
     def get_reasoning(self) -> str:
