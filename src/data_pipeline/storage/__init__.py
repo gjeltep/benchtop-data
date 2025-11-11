@@ -1,9 +1,3 @@
-"""
-Storage module for DuckDB persistence.
-
-Uses repository pattern for clean separation of concerns.
-"""
-
 from abc import ABC, abstractmethod
 from typing import Optional, Dict
 import duckdb
@@ -11,7 +5,7 @@ import pandas as pd
 from sqlalchemy import create_engine, Engine
 import tempfile
 import os
-from ..logging_config import get_logger
+from ..logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -107,25 +101,45 @@ class DuckDBRepository(StorageRepository):
         Returns:
             SQLAlchemy Engine instance
         """
-        # For file-based databases, use the file path
+        # For file-based databases, use the file path directly
         if self.db_path:
             connection_string = f"duckdb:///{self.db_path}"
             return create_engine(connection_string)
 
-        # For in-memory databases, use a temporary file
-        # This avoids duckdb-engine compatibility issues with :memory: connections
+        # For in-memory databases, create temporary file and copy data
         if self._temp_db_file is None:
+            self._temp_db_file = self._create_temp_db_for_sqlalchemy()
+
+        # Use the temporary file for SQLAlchemy engine
+        connection_string = f"duckdb:///{self._temp_db_file}"
+        return create_engine(connection_string)
+
+    def _create_temp_db_for_sqlalchemy(self) -> str:
+        """
+        Create a temporary DuckDB file and copy data from in-memory connection.
+
+        This avoids duckdb-engine compatibility issues with :memory: connections.
+        The temporary file is cleaned up when the repository is closed. Not sure this
+        is the best approach but it works.
+
+        Returns:
+            Path to temporary database file
+
+        Raises:
+            StorageError: If temporary file creation or data copy fails
+        """
+        try:
             # Create temporary file path (don't create the file yet - let DuckDB create it)
-            fd, self._temp_db_file = tempfile.mkstemp(suffix=".duckdb")
+            fd, temp_db_file = tempfile.mkstemp(suffix=".duckdb")
             os.close(fd)  # Close file descriptor
-            os.unlink(self._temp_db_file)  # Delete empty file - DuckDB will create it
+            os.unlink(temp_db_file)  # Delete empty file - DuckDB will create it
 
             # Initialize the DuckDB file by creating a connection first
             # DuckDB will create the file if it doesn't exist
-            temp_conn = duckdb.connect(self._temp_db_file)
+            temp_conn = duckdb.connect(temp_db_file)
 
-            # Copy data from in-memory connection to temp file
             try:
+                # Copy data from in-memory connection to temp file
                 tables = self.conn.execute(
                     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'"
                 ).fetchall()
@@ -140,18 +154,15 @@ class DuckDBRepository(StorageRepository):
 
                 # Commit and close to ensure data is written
                 temp_conn.close()
-            except Exception:
+                return temp_db_file
+            except Exception as e:
                 # Clean up temp file on error
-                if temp_conn:
-                    temp_conn.close()
-                if os.path.exists(self._temp_db_file):
-                    os.unlink(self._temp_db_file)
-                    self._temp_db_file = None
-                raise
-
-        # Use the temporary file for SQLAlchemy engine
-        connection_string = f"duckdb:///{self._temp_db_file}"
-        return create_engine(connection_string)
+                temp_conn.close()
+                if os.path.exists(temp_db_file):
+                    os.unlink(temp_db_file)
+                raise StorageError(f"Failed to copy in-memory data to temporary file: {e}") from e
+        except Exception as e:
+            raise StorageError(f"Failed to create temporary database file: {e}") from e
 
     def close(self):
         """Close the database connection."""

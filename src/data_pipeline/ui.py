@@ -9,8 +9,8 @@ import pandas as pd
 import tempfile
 import yaml
 from data_pipeline import create_pipeline
-from data_pipeline.config import config
-from data_pipeline.logging_config import setup_logging
+from data_pipeline.config import load_config
+from data_pipeline.logging import setup_logging
 
 # Initialize logging with HTTP log suppression
 setup_logging(suppress_http_logs=True)
@@ -37,10 +37,15 @@ def main():
         st.session_state.table_name = None
     if "confirm_clear" not in st.session_state:
         st.session_state.confirm_clear = False
-    if "ollama_model" not in st.session_state:
-        st.session_state.ollama_model = config.llm_model
-    if "ollama_url" not in st.session_state:
-        st.session_state.ollama_url = config.ollama_url
+    if "ollama_model" not in st.session_state or "ollama_url" not in st.session_state:
+        config = load_config()
+        if "ollama_model" not in st.session_state:
+            st.session_state.ollama_model = config.llm_model
+        if "ollama_url" not in st.session_state:
+            st.session_state.ollama_url = config.ollama_url
+    if "use_react_agent" not in st.session_state:
+        st.session_state.use_react_agent = False  # Default to custom workflow
+
     # Invalidate existing pipeline if code version changed (ensures new workflow logic is applied)
     existing_pipeline = st.session_state.get("pipeline")
     if existing_pipeline is None:
@@ -66,6 +71,14 @@ def main():
             key="ollama_url_input",
         )
         st.session_state.ollama_url = ollama_url
+
+        use_react_agent = st.checkbox(
+            "Use ReAct Agent",
+            value=st.session_state.use_react_agent,
+            help="Use ReActAgent workflow instead of custom workflow with sub-questions and reflection",
+            key="use_react_agent_input",
+        )
+        st.session_state.use_react_agent = use_react_agent
 
         use_persistent = st.checkbox(
             "Persist Data", value=False, help="Save database and embeddings to disk"
@@ -145,7 +158,8 @@ def main():
                             db_path=db_path,
                             chroma_path=chroma_path,
                             ollama_model=st.session_state.ollama_model,
-                            ollama_base_url=st.session_state.ollama_url
+                            ollama_base_url=st.session_state.ollama_url,
+                            use_react_agent=st.session_state.use_react_agent,
                         )
 
                         # Process dataset
@@ -181,6 +195,10 @@ def main():
         if not st.session_state.processed:
             st.info("👆 Please upload and process a dataset first in the 'Upload & Process' tab.")
         else:
+            # Show workflow type indicator
+            workflow_type = "ReAct Agent" if st.session_state.use_react_agent else "Custom Workflow"
+            st.info(f"🔄 Using {workflow_type} workflow")
+
             # Create two columns: main chat area and sidebar
             col_main, col_sidebar = st.columns([3, 1])
 
@@ -265,8 +283,14 @@ def main():
                                         st.info("🔧 SQL Engine Used")
                                     elif engine_type == "vector":
                                         st.info("🔍 Vector Search Engine Used")
+                                    elif engine_type == "react_agent":
+                                        st.info("🤖 ReAct Agent Workflow Used")
                                     else:
                                         st.info(f"🔧 Engine: {engine_type}")
+
+                                    # Show workflow type
+                                    workflow_type = "ReAct Agent" if st.session_state.use_react_agent else "Custom Workflow (with sub-questions & reflection)"
+                                    st.caption(f"Workflow: {workflow_type}")
 
                                     # Show SQL query if captured
                                     if metadata.get("sql_query"):
@@ -332,10 +356,6 @@ def main():
             except Exception as e:
                 st.error(f"❌ Failed to load dataset: {type(e).__name__}: {str(e)}")
                 st.exception(e)
-
-    # NOTE: Cleanup on app close - Streamlit doesnt seem to have it but may need to use session state more carefully
-    if st.session_state.pipeline is not None:
-        pass
 
 if __name__ == "__main__":
     main()

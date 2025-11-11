@@ -6,7 +6,7 @@ from collections import deque
 from llama_index.llms.ollama import Ollama
 from llama_index.core.base.llms.types import CompletionResponse, ChatResponse
 from llama_index.core.llms import ChatMessage
-from ...logging_config import get_logger
+from ...logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -15,6 +15,7 @@ class ThinkingOllamaWrapper(Ollama):
     """Wrapper around Ollama LLM that captures thinking tokens during streaming."""
 
     THINKING_TOKEN_KEYS: ClassVar[List[str]] = ["thinking_delta", "thinking", "reasoning", "think"]
+    # TODO: Better way to detect this weird looping behavior in reasoning models?
     REPETITION_THRESHOLD: ClassVar[int] = 3  # Number of times a phrase can repeat before stopping
     REPETITION_WINDOW: ClassVar[int] = 200  # Characters to check for repetition
 

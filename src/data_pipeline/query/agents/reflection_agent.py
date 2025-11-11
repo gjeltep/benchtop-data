@@ -9,10 +9,15 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from llama_index.core.workflow import Event
 from llama_index.core.llms import ChatMessage, MessageRole
-from ...logging_config import get_logger
+from ...logging import get_logger
 from .parsing import extract_field, extract_boolean, extract_float, extract_list
+from .config import AgenticConfig
 
 logger = get_logger(__name__)
+
+
+# Type alias for query metadata (moved here to avoid circular import)
+QueryMetadata = Dict[str, Any]
 
 
 class ReflectionResult(BaseModel):
@@ -75,12 +80,13 @@ END"""
         self.llm = llm
         self.reasoning_handler = reasoning_handler
         self.reflection_threshold = reflection_threshold
+        self.config = AgenticConfig()
 
     async def reflect(
         self,
         query: str,
         response: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[QueryMetadata] = None,
     ) -> ReflectionResult:
         """
         Reflect on a query response to evaluate its quality.
@@ -130,9 +136,9 @@ END"""
         response_text = response_obj.message.content
 
         # Truncate if too long (safety check)
-        if len(response_text) > 2000:
+        if len(response_text) > self.config.max_response_length:
             logger.warning("Reflection response was very long, truncating")
-            response_text = response_text[:2000]
+            response_text = response_text[:self.config.max_response_length]
 
         if self.reasoning_handler:
             self.reasoning_handler.log_complete_reasoning()
@@ -176,5 +182,3 @@ END"""
             reasoning=reasoning,
             should_refine=should_refine,
         )
-
-

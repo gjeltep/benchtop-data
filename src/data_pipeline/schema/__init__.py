@@ -14,7 +14,7 @@ import pandas as pd
 from pandera.pandas import Column, DataFrameSchema
 from pandera.errors import SchemaError as PanderaSchemaError, SchemaErrors as PanderaSchemaErrors
 from ..exceptions import SchemaError
-from ..logging_config import get_logger
+from ..logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -113,13 +113,13 @@ class SchemaParser:
                 elif file_path.endswith(".json"):
                     data = json.load(f)
                 else:
-                    raise SchemaError(f"Unsupported file format: {file_path}")
+                    raise SchemaError(f"Unsupported file format: {file_path}", schema_path=file_path)
 
             return SchemaParser.parse_dict(data)
         except FileNotFoundError:
-            raise SchemaError(f"Schema file not found: {file_path}")
+            raise SchemaError(f"Schema file not found: {file_path}", schema_path=file_path)
         except (yaml.YAMLError, json.JSONDecodeError) as e:
-            raise SchemaError(f"Failed to parse schema file: {e}")
+            raise SchemaError(f"Failed to parse schema file: {e}", schema_path=file_path)
 
     @staticmethod
     def parse_dict(data: Dict[str, Any]) -> Schema:

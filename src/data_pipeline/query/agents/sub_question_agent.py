@@ -10,8 +10,9 @@ from typing import List
 from pydantic import BaseModel, Field
 from llama_index.core.workflow import Event
 from llama_index.core.llms import ChatMessage, MessageRole
-from ...logging_config import get_logger
+from ...logging import get_logger
 from .parsing import extract_field
+from .config import AgenticConfig
 
 logger = get_logger(__name__)
 
@@ -76,6 +77,7 @@ END"""
         """
         self.llm = llm
         self.reasoning_handler = reasoning_handler
+        self.config = AgenticConfig()
 
     async def decompose(self, query: str) -> QueryDecomposition:
         """
@@ -107,9 +109,9 @@ END"""
         response_text = response.message.content
 
         # Truncate if too long (safety check)
-        if len(response_text) > 2000:
+        if len(response_text) > self.config.max_response_length:
             logger.warning("Decomposition response was very long, truncating")
-            response_text = response_text[:2000]
+            response_text = response_text[:self.config.max_response_length]
 
         if self.reasoning_handler:
             self.reasoning_handler.log_complete_reasoning()
@@ -236,4 +238,3 @@ END"""
             ))
 
         return sub_questions
-

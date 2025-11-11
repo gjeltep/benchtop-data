@@ -10,9 +10,10 @@ from ..storage import StorageRepository, DuckDBRepository
 from ..semantic import SemanticTextGenerator
 from ..embeddings import ChromaRepository
 from ..query import QueryEngine
-from ..exceptions import ValidationError, ConfigurationError
-from ..logging_config import get_logger
-from ..config import config
+from ..exceptions import ValidationError
+from ..logging import get_logger
+from ..config import Config, load_config
+from .file_loader import FileLoader
 
 logger = get_logger(__name__)
 
@@ -22,49 +23,25 @@ class DataPipeline:
 
     def __init__(
         self,
-        db_path: Optional[str] = None,
-        chroma_path: Optional[str] = None,
-        ollama_model: Optional[str] = None,
-        ollama_base_url: Optional[str] = None,
-        context_window: Optional[int] = None,
-        temperature: Optional[float] = None,
-        similarity_top_k: Optional[int] = None,
-        embed_batch_size: Optional[int] = None,
+        config: Optional[Config] = None,
         storage_repo: Optional[StorageRepository] = None,
-        enable_reasoning_logs: Optional[bool] = None,
     ):
         """
         Initialize the data pipeline.
 
         Args:
-            db_path: Path to DuckDB file (None = in-memory, uses config default if None)
-            chroma_path: Path to Chroma persistence directory (None = in-memory, uses config default if None)
-            ollama_model: Ollama model name to use (uses config default if None)
-            ollama_base_url: Ollama API base URL (uses config default if None)
-            context_window: Maximum context window size for the LLM (uses config default if None)
-            temperature: Sampling temperature (uses config default if None)
-            similarity_top_k: Number of similar chunks to retrieve for vector search (uses config default if None)
-            embed_batch_size: Number of texts to batch per embedding API call (uses config default if None)
-            storage_repo: Optional storage repository (constructor DI)
-            enable_reasoning_logs: Enable logging of reasoning tokens from reasoning-based LLMs (uses config default if None)
+            config: Pipeline configuration (uses defaults from load_config() if None)
+            storage_repo: Optional storage repository (constructor DI, overrides config.db_path)
         """
-        self.storage_repo = storage_repo or DuckDBRepository(db_path or config.db_path)
-        self.embeddings_repo = ChromaRepository(chroma_path or config.chroma_path)
+        # Use provided config or load defaults
+        self.config = config or load_config()
 
-        # Query engine with config defaults
-        self.query_engine = QueryEngine(
-            model_name=ollama_model or config.llm_model,
-            base_url=ollama_base_url or config.ollama_url,
-            embed_model_name=config.embed_model,
-            context_window=context_window if context_window is not None else config.context_window,
-            temperature=temperature if temperature is not None else config.temperature,
-            similarity_top_k=similarity_top_k if similarity_top_k is not None else config.similarity_top_k,
-            embed_batch_size=embed_batch_size if embed_batch_size is not None else config.embed_batch_size,
-            request_timeout=config.request_timeout,
-            num_output=config.num_output,
-            chat_history_token_limit=config.chat_history_token_limit,
-            enable_reasoning_logs=enable_reasoning_logs if enable_reasoning_logs is not None else config.enable_reasoning_logs,
-        )
+        # Use provided storage_repo or create from config
+        self.storage_repo = storage_repo or DuckDBRepository(self.config.db_path)
+        self.embeddings_repo = ChromaRepository(self.config.chroma_path)
+
+        # Query engine with config values
+        self.query_engine = QueryEngine(config=self.config)
 
         # State
         self.schema: Optional[Schema] = None
@@ -91,26 +68,7 @@ class DataPipeline:
             Loaded DataFrame
         """
         path = Path(dataset_path)
-
-        if path.suffix == ".csv":
-            df = pd.read_csv(path)
-
-            # Parse date/datetime columns based on schema format specifications
-            if self.schema:
-                for field in self.schema.fields:
-                    if field.type.value in ["date", "datetime"] and field.name in df.columns:
-                        if field.format:
-                            # Parse with specified format (e.g., "%m/%d/%Y")
-                            df[field.name] = pd.to_datetime(df[field.name], format=field.format)
-                        else:
-                            # Let pandas infer format
-                            df[field.name] = pd.to_datetime(df[field.name])
-        elif path.suffix in [".parquet", ".pq"]:
-            df = pd.read_parquet(path)
-        else:
-            raise ConfigurationError(f"Unsupported file format: {path.suffix}")
-
-        return df
+        return FileLoader.load(path, schema=self.schema)
 
     def process(self, dataset_path: Union[str, Path], schema_path: Union[str, Path]) -> None:
         """
@@ -139,7 +97,10 @@ class DataPipeline:
         validator = SchemaValidator(self.schema)
         is_valid, errors = validator.validate(df)
         if not is_valid:
-            raise ValidationError("Dataset validation failed:\n" + "\n".join(errors))
+            raise ValidationError(
+                "Dataset validation failed:\n" + "\n".join(errors),
+                table_name=self.table_name,
+            )
 
         # Store in DuckDB
         self.storage_repo.insert_dataframe(self.table_name, df)
@@ -164,9 +125,6 @@ class DataPipeline:
 
         # Create Chroma collection and initialize with LlamaIndex
         collection_name = f"{self.table_name}_embeddings"
-
-        # Create or get collection (without adding data yet)
-        self.embeddings_repo.create_collection(collection_name)
 
         # Index texts and initialize query engines for hybrid SQL+vector queries
         self.query_engine.index_texts(
@@ -227,12 +185,13 @@ def create_pipeline(
     similarity_top_k: Optional[int] = None,
     embed_batch_size: Optional[int] = None,
     enable_reasoning_logs: Optional[bool] = None,
+    use_react_agent: Optional[bool] = None,
 ) -> DataPipeline:
     """
     Factory function to create a pipeline instance.
 
-    All parameters default to None, which means they will use values from the config module.
-    This allows the config module to be the single source of truth for defaults.
+    All parameters default to None, which means they will use values from load_config().
+    This allows config to be the single source of truth for defaults.
 
     Args:
         db_path: Path to DuckDB file (None = uses config default, typically in-memory)
@@ -244,11 +203,13 @@ def create_pipeline(
         similarity_top_k: Number of similar chunks to retrieve for vector search (None = uses config default)
         embed_batch_size: Number of texts to batch per embedding API call (None = uses config default)
         enable_reasoning_logs: Enable logging of reasoning tokens from reasoning-based LLMs (None = uses config default)
+        use_react_agent: Use ReActAgent as entire workflow instead of custom workflow (None = uses config default)
 
     Returns:
         Configured DataPipeline instance
     """
-    return DataPipeline(
+    base_config = load_config()
+    config = base_config.with_overrides(
         db_path=db_path,
         chroma_path=chroma_path,
         ollama_model=ollama_model,
@@ -258,4 +219,6 @@ def create_pipeline(
         similarity_top_k=similarity_top_k,
         embed_batch_size=embed_batch_size,
         enable_reasoning_logs=enable_reasoning_logs,
+        use_react_agent=use_react_agent,
     )
+    return DataPipeline(config=config)

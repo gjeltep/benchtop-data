@@ -8,8 +8,7 @@ import sys
 import logging
 from pathlib import Path
 from data_pipeline import create_pipeline
-from data_pipeline.logging_config import setup_logging, get_logger
-from data_pipeline.config import config
+from data_pipeline.logging import setup_logging, get_logger
 
 
 def main():
@@ -30,14 +29,14 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default=config.llm_model,
-        help=f"Ollama model name (default: {config.llm_model})",
+        default=None,
+        help="Ollama model name (default: from config)",
     )
     parser.add_argument(
         "--ollama-url",
         type=str,
-        default=config.ollama_url,
-        help=f"Ollama API base URL (default: {config.ollama_url})",
+        default=None,
+        help="Ollama API base URL (default: from config)",
     )
     parser.add_argument("--query", type=str, help="Ask a question and exit")
     parser.add_argument(

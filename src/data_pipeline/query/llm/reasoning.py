@@ -10,7 +10,7 @@ import sys
 from typing import Optional
 from llama_index.core.callbacks import CBEventType, EventPayload
 from llama_index.core.callbacks.base_handler import BaseCallbackHandler
-from ...logging_config import get_logger
+from ...logging import get_logger
 
 logger = get_logger(__name__)
 

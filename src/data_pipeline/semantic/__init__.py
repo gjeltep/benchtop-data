@@ -1,9 +1,3 @@
-"""
-Semantic text generation module.
-
-Generates semantic text representations of rows for embedding.
-"""
-
 from typing import List
 import pandas as pd
 from ..schema import Schema
