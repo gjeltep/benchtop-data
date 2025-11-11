@@ -50,15 +50,10 @@ async def execute_sub_questions(
 
     async def execute_sub_question(sub_q, index):
         """Execute a single sub-question using hints for routing."""
-        # Extract question and hints (handle both Pydantic model and dict)
-        if hasattr(sub_q, 'question'):
-            question = sub_q.question
-            requires_sql = sub_q.requires_sql
-            requires_semantic = sub_q.requires_semantic
-        else:
-            question = sub_q.get("question", "")
-            requires_sql = sub_q.get("requires_sql", False)
-            requires_semantic = sub_q.get("requires_semantic", False)
+        # Extract question and hints from Pydantic SubQuestion model
+        question = sub_q.question
+        requires_sql = sub_q.requires_sql
+        requires_semantic = sub_q.requires_semantic
 
         # Enhance query with refinement context if in refinement iteration
         question = await enhance_query_with_refinement_context(ctx, question, config)
@@ -93,15 +88,8 @@ async def execute_sub_questions(
 
     logger.info(f"Completed execution of {len(sub_question_results)} sub-questions")
 
-    # Convert sub_questions to dict format
-    sub_questions_dict = [
-        sq.model_dump() if hasattr(sq, 'model_dump') else
-        sq if isinstance(sq, dict) else
-        {"question": getattr(sq, 'question', str(sq)),
-         "requires_sql": getattr(sq, 'requires_sql', False),
-         "requires_semantic": getattr(sq, 'requires_semantic', False)}
-        for sq in sub_questions
-    ]
+    # Convert Pydantic SubQuestion models to dict format
+    sub_questions_dict = [sq.model_dump() for sq in sub_questions]
 
     return {
         "sub_question_results": sub_question_results,

@@ -21,10 +21,3 @@ class QueryMetadata(TypedDict, total=False):
     vector_source_count: int
     error: str  # Optional
 
-
-class ReflectionFeedback(BaseModel):
-    """Structured reflection feedback stored in context."""
-    missing_information: List[str] = Field(default_factory=list)
-    suggested_improvements: List[str] = Field(default_factory=list)
-    confidence_score: float = Field(ge=0.0, le=1.0)
-

@@ -89,8 +89,8 @@ class RouterQueryEngineWorkflow(Workflow):
     1. decompose_query: Decomposes complex queries into sub-questions
     2. selector: Routes query to appropriate engine(s)
     3. generate_responses: Executes selected engine(s)
-    4. synthesize: Combines multiple responses if needed
-    5. reflect: Validates and improves response quality (with optional refinement)
+    4. synthesize_and_reflect: Combines multiple responses and validates quality (with optional refinement)
+    5. finalize: Returns the final response after reflection
     """
 
     def __init__(
@@ -224,9 +224,6 @@ class RouterQueryEngineWorkflow(Workflow):
             tool.metadata for tool in self.query_engine_tools
         ]
 
-        # Select engine(s) - this LLM call may produce reasoning tokens
-        # The selector internally uses the LLM, so reasoning tokens will be captured
-        # by the LLM's streaming mechanism if enabled
         selected_query_engines = await selector.aselect(
             query_engines_metadata, query
         )
@@ -369,10 +366,10 @@ class RouterQueryEngineWorkflow(Workflow):
         )
 
     @step
-    async def synthesize(
+    async def synthesize_and_reflect(
         self, ctx: Context, ev: SynthesizeEvent
     ) -> StopEvent | ReflectionCompleteEvent | QueryEngineSelectionEvent:
-        """Synthesize final response from query engine results."""
+        """Synthesize final response from query engine results and reflect on quality."""
         responses = ev.result
         selected_query_engines = ev.selected_query_engines
         query = await ctx.store.get(ContextKeys.QUERY, default="")
@@ -440,15 +437,15 @@ class RouterQueryEngineWorkflow(Workflow):
 
 
     @step
-    async def reflect(
+    async def finalize(
         self, ctx: Context, ev: ReflectionCompleteEvent
     ) -> StopEvent:
         """
         Final step after reflection - returns the response.
 
-        This step allows for potential refinement loops in the future.
+        This step receives the reflection result and emits the terminating event
+        with the final response.
         """
         self._log_step("STEP: FINAL RESPONSE", "Workflow complete - returning final answer")
-        # Return Response object following LlamaIndex best practices
         return StopEvent(result=ev.final_response)
 

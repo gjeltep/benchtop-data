@@ -5,9 +5,10 @@ from llama_index.core.workflow import Context, StartEvent
 from llama_index.core.base.response.schema import Response
 from ....logging import get_logger
 from ...agents import ReflectionAgent
+from ...agents.reflection_agent import ReflectionResult
 from ...agents.config import AgenticConfig
 from .context_keys import ContextKeys
-from .types import QueryMetadata, ReflectionFeedback
+from .types import QueryMetadata
 from ...agents.refinement_agent import RefinementAgent
 
 logger = get_logger(__name__)
@@ -92,13 +93,9 @@ async def reflect_and_refine(
         await ctx.store.set(ContextKeys.REFINEMENT_ITERATION, iteration + 1)
         await ctx.store.set(ContextKeys.QUERY, refined_query)
 
-        # Store previous response and reflection feedback
+        # Store previous response and full reflection result for refinement context
         await ctx.store.set(ContextKeys.PREVIOUS_RESPONSE, response)
-        await ctx.store.set(ContextKeys.REFLECTION_FEEDBACK, ReflectionFeedback(
-            missing_information=reflection_result.missing_information or [],
-            suggested_improvements=reflection_result.suggested_improvements or [],
-            confidence_score=reflection_result.confidence_score,
-        ).model_dump())
+        await ctx.store.set(ContextKeys.REFLECTION_FEEDBACK, reflection_result.model_dump())
 
         # Re-execute with refined query
         return await decompose_query_fn(ctx, StartEvent(query=refined_query))

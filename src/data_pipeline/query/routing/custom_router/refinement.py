@@ -3,8 +3,8 @@
 from typing import Optional
 from llama_index.core.workflow import Context
 from ...agents.config import AgenticConfig
+from ...agents.reflection_agent import ReflectionResult
 from .context_keys import ContextKeys
-from .types import ReflectionFeedback
 from ....logging import get_logger
 
 logger = get_logger(__name__)
@@ -80,23 +80,23 @@ async def enhance_query_with_refinement_context(
     if refinement_iteration == 0:
         return query
 
-    # Get reflection feedback
-    feedback_data = await ctx.store.get(ContextKeys.REFLECTION_FEEDBACK, default=None)
-    if not feedback_data:
+    # Get reflection result from previous iteration
+    reflection_data = await ctx.store.get(ContextKeys.REFLECTION_FEEDBACK, default=None)
+    if not reflection_data:
         return query
 
     try:
-        reflection_feedback = ReflectionFeedback(**feedback_data)
+        reflection_result = ReflectionResult(**reflection_data)
     except Exception as e:
-        logger.warning(f"Failed to parse reflection feedback: {e}")
+        logger.warning(f"Failed to parse reflection result: {e}")
         return query
 
     previous_response = await ctx.store.get(ContextKeys.PREVIOUS_RESPONSE, default=None)
 
     enhanced = _build_refinement_context(
         query=query,
-        missing_info=reflection_feedback.missing_information,
-        improvements=reflection_feedback.suggested_improvements,
+        missing_info=reflection_result.missing_information,
+        improvements=reflection_result.suggested_improvements,
         previous_response=previous_response,
         config=config,
     )

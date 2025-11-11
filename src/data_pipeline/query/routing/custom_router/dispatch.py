@@ -2,7 +2,6 @@
 
 from typing import Optional, List
 import asyncio
-from .context_keys import ContextKeys
 from llama_index.core.base.response.schema import (
     Response,
     AsyncStreamingResponse,
@@ -85,17 +84,3 @@ async def execute_queries(
 def is_single_response(responses: List[Response]) -> bool:
     """Check if we have a single response."""
     return len(responses) == 1
-
-
-async def track_engine_selection(
-    selected_indices: List[int], ctx, workflow_instance
-) -> None:
-    """Track which engine(s) were selected."""
-    if len(selected_indices) == 1:
-        # Single engine selected
-        await ctx.store.set(ContextKeys.SELECTED_ENGINE_INDEX, selected_indices[0])
-        workflow_instance.selected_engine_index = selected_indices[0]
-    else:
-        # Multiple engines selected
-        await ctx.store.set(ContextKeys.SELECTED_ENGINE_INDICES, selected_indices)
-        workflow_instance.selected_engine_index = selected_indices[0] if selected_indices else None
