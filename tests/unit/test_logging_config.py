@@ -3,7 +3,7 @@
 import logging
 import pytest
 
-from data_pipeline.logging_config import DEFAULT_LOGGER_NAME, setup_logging, get_logger
+from data_pipeline.logging import DEFAULT_LOGGER_NAME, setup_logging, get_logger
 
 
 class TestSetupLogging:
@@ -38,11 +38,11 @@ class TestGetLogger:
     def test_get_logger(self):
         """Test getting logger with and without explicit name."""
         # With explicit name
-        logger = get_logger("my_module")
+        logger = get_logger(name="my_module")
         assert isinstance(logger, logging.Logger)
         assert logger.name == "my_module"
 
         # Without name (inferred)
-        logger = get_logger()
+        logger = get_logger(name=None)
         assert isinstance(logger, logging.Logger)
         assert logger.name is not None

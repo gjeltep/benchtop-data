@@ -11,7 +11,7 @@ from ..logging import get_logger
 from .prompts import DEFAULT_SYSTEM_PROMPT
 from .workflow_setup import create_query_workflow
 from .sql_setup import initialize_sql_engine
-from .vector_setup import initialize_vector_index
+from .vector_setup import initialize_vector_index, load_existing_vector_index
 from .llm import ReasoningTokenHandler, LLMFactory, EngineType
 from .agents.config import AgenticConfig
 from ..config import Config
@@ -145,6 +145,71 @@ class QueryEngine:
         )
 
         # Initialize router workflow using config
+        workflow_type = "react_agent" if self.config.use_react_agent else "custom_router"
+        self.router_workflow, self.query_engine_tools, self.summarizer = create_query_workflow(
+            workflow_type=workflow_type,
+            index=self.index,
+            llm=self.llm,
+            similarity_top_k=self.config.similarity_top_k,
+            sql_query_engine=sql_query_engine,
+            reasoning_handler=self.reasoning_handler,
+            request_timeout=self.config.request_timeout,
+            context_window=self.config.context_window,
+            num_output=self.config.num_output,
+            config=self.config,
+        )
+
+    def initialize_from_existing(
+        self,
+        collection_name: str,
+        chroma_client,
+        table_name: str,
+        storage_repo: StorageRepository,
+    ) -> None:
+        """
+        Initialize query engines from existing persisted data.
+
+        This skips data ingestion and embedding generation, connecting to
+        existing DuckDB and Chroma data instead. Much faster than index_texts()
+        when data already exists.
+
+        Args:
+            collection_name: Name of the existing Chroma collection
+            chroma_client: Chroma client instance
+            table_name: Name of the table for SQL queries
+            storage_repo: Storage repository (required for SQL queries)
+
+        Raises:
+            QueryError: If initialization fails
+        """
+        # Load existing vector index (no embedding generation)
+        self.index = load_existing_vector_index(
+            collection_name=collection_name,
+            chroma_client=chroma_client,
+            embed_model=self.embed_model,
+        )
+
+        # SQL query engine (same as index_texts)
+        sql_llm = LLMFactory.create(
+            model_name=self.config.llm_model,
+            base_url=self.config.ollama_url,
+            reasoning_handler=None,
+            request_timeout=self.config.request_timeout,
+            context_window=self.config.context_window,
+            num_output=self.config.num_output,
+            temperature=self.config.temperature,
+            system_prompt=None,
+        )
+
+        sql_query_engine = initialize_sql_engine(
+            storage_repo=storage_repo,
+            table_name=table_name,
+            llm=sql_llm,
+            embed_model=self.embed_model,
+            streaming=True,
+        )
+
+        # Initialize router workflow
         workflow_type = "react_agent" if self.config.use_react_agent else "custom_router"
         self.router_workflow, self.query_engine_tools, self.summarizer = create_query_workflow(
             workflow_type=workflow_type,

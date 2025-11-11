@@ -49,7 +49,16 @@ class DuckDBRepository(StorageRepository):
         """
         self.db_path = db_path
         connection_string = f"duckdb:///{db_path}" if db_path else "duckdb:///:memory:"
-        self.engine = create_engine(connection_string)
+
+        # For in-memory databases, use StaticPool to ensure single connection
+        # This prevents multiple connections from creating separate databases
+        if not db_path:
+            from sqlalchemy.pool import StaticPool
+
+            self.engine = create_engine(connection_string, poolclass=StaticPool)
+        else:
+            self.engine = create_engine(connection_string)
+
         logger.debug(f"Storage repository initialized: {connection_string}")
 
     def create_table(self, table_name: str, schema: Dict[str, str]) -> None:

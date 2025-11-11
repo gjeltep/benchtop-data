@@ -2,7 +2,7 @@
 
 A few ideas have been of interest recently, and wanted to explore a bit:
 - what's possible to set up locally for analyzing credit transactions?
-- small (<10B) parameter models can certainly provide interesting behavior - what sort of mileage can they provide?
+- small (~10B) parameter models can certainly provide interesting behavior - what sort of mileage can they provide?
 - generalizing specific need to a simple E2E data analysis pipeline
 
 Those explorations ultimately yielded a fairly general-purpose, local AI data analysis pipeline capable of processing datasets, validating them against schemas, storing them in DuckDB, capturing semantic embeddings, and offering a natural language querying interface. And - should you choose - without token burn!

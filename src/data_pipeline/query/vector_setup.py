@@ -69,3 +69,56 @@ def initialize_vector_index(
     except Exception as e:
         logger.error(f"Failed to initialize vector index: {e}", exc_info=True)
         raise QueryError(f"Vector index initialization failed: {e}") from e
+
+
+def load_existing_vector_index(
+    collection_name: str,
+    chroma_client,
+    embed_model,
+) -> VectorStoreIndex:
+    """
+    Load an existing vector index from Chroma.
+
+    This skips embedding generation and connects to existing data.
+    Much faster than initialize_vector_index() when data already exists.
+
+    Args:
+        collection_name: Name of the existing Chroma collection
+        chroma_client: Chroma client instance
+        embed_model: Embedding model (for query encoding)
+
+    Returns:
+        VectorStoreIndex connected to existing data
+
+    Raises:
+        QueryError: If collection doesn't exist or loading fails
+    """
+    try:
+        # Get existing collection (will raise if doesn't exist)
+        chroma_collection = chroma_client.get_collection(name=collection_name)
+
+        # Create vector store from existing collection
+        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+
+        # Create storage context
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+        # Create index from existing vector store
+        index = VectorStoreIndex.from_vector_store(
+            vector_store=vector_store,
+            storage_context=storage_context,
+            embed_model=embed_model,
+        )
+
+        doc_count = chroma_collection.count()
+        logger.info(
+            f"Vector index loaded from existing collection '{collection_name}' ({doc_count} documents)"
+        )
+        return index
+
+    except Exception as e:
+        logger.error(f"Failed to load existing vector index: {e}", exc_info=True)
+        raise QueryError(
+            f"Vector index loading failed: {e}. "
+            f"Collection '{collection_name}' may not exist. Use process() to create it first."
+        ) from e

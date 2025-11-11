@@ -137,6 +137,46 @@ class DataPipeline:
             storage_repo=self.storage_repo,
         )
 
+    def load_existing(self, schema_path: Union[str, Path]) -> None:
+        """
+        Load from existing persisted database and embeddings.
+
+        This method skips data ingestion and embedding generation, instead
+        connecting to existing DuckDB and Chroma data. Much faster than
+        process() when data already exists.
+
+        Requirements:
+        - DuckDB database must already exist at config.db_path
+        - Chroma collection must already exist at config.chroma_path
+        - Schema file must match the existing data
+
+        Args:
+            schema_path: Path to schema definition file
+
+        Raises:
+            FileNotFoundError: If database or embeddings don't exist
+            QueryError: If query engine initialization fails
+        """
+        # Load schema to get table name
+        self.load_schema(schema_path)
+
+        # Verify table exists in database
+        if not self.storage_repo.table_exists(self.table_name):
+            raise FileNotFoundError(
+                f"Table '{self.table_name}' not found in database. "
+                f"Use process() to create it first."
+            )
+
+        # Initialize query engines from existing data
+        collection_name = f"{self.table_name}_embeddings"
+
+        self.query_engine.initialize_from_existing(
+            collection_name=collection_name,
+            chroma_client=self.embeddings_repo.get_client(),
+            table_name=self.table_name,
+            storage_repo=self.storage_repo,
+        )
+
     def ask(self, question: str, return_metadata: bool = False):
         """
         Ask a natural language question over the dataset.

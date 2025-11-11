@@ -97,104 +97,195 @@ def main():
     tab1, tab2, tab3 = st.tabs(["📤 Upload & Process", "💬 Query", "📋 Dataset Info"])
 
     with tab1:
-        st.header("Upload Dataset and Schema")
+        st.header("Data Setup")
 
-        col1, col2 = st.columns(2)
+        # Mode selection
+        mode = st.radio(
+            "Choose mode:",
+            ["📤 Process New Data", "📂 Load Existing Database"],
+            help="Process New: Upload and process data (slower, generates embeddings). Load Existing: Connect to existing database (faster, skips embedding generation)",
+            horizontal=True,
+        )
 
-        with col1:
-            st.subheader("Dataset File")
-            dataset_file = st.file_uploader(
-                "Upload CSV or Parquet file",
-                type=["csv", "parquet"],
-                help="Upload your dataset file",
+        st.divider()
+
+        if mode == "📂 Load Existing Database":
+            st.subheader("Load from Existing Database")
+            st.info(
+                "💡 This mode skips data processing and embedding generation. Requires existing database and embeddings."
             )
 
-            if dataset_file is not None:
-                st.success(f"✅ Uploaded: {dataset_file.name}")
-
-                # Preview dataset (cached to avoid re-reading)
-                df_preview = load_preview(dataset_file.getvalue(), dataset_file.name)
-                st.dataframe(df_preview.head(10), width="stretch")
-                st.caption(f"Preview: {len(df_preview)} rows, {len(df_preview.columns)} columns")
-
-        with col2:
-            st.subheader("Schema File")
+            # Schema file required for table name
             schema_file = st.file_uploader(
-                "Upload YAML or JSON schema",
+                "Upload Schema File (required)",
                 type=["yaml", "yml", "json"],
-                help="Upload your schema definition file",
+                help="Schema file is needed to identify the table name",
+                key="load_schema",
             )
 
             if schema_file is not None:
-                st.success(f"✅ Uploaded: {schema_file.name}")
+                st.success(f"✅ Schema: {schema_file.name}")
+                schema_content = schema_file.getvalue().decode("utf-8")
 
-                # Preview schema (cache content to avoid re-reading)
-                schema_bytes = schema_file.getvalue()
-                schema_content = schema_bytes.decode("utf-8")
-                st.code(
-                    schema_content,
-                    language="yaml" if schema_file.name.endswith((".yaml", ".yml")) else "json",
+                with st.expander("View Schema"):
+                    st.code(
+                        schema_content,
+                        language="yaml" if schema_file.name.endswith((".yaml", ".yml")) else "json",
+                    )
+
+                st.divider()
+
+                if st.button("🔗 Load Existing Database", type="primary", use_container_width=True):
+                    if not use_persistent:
+                        st.error(
+                            "❌ You must enable 'Persist Data' in the sidebar to load existing databases!"
+                        )
+                    elif not db_path or not chroma_path:
+                        st.error("❌ Please specify DuckDB Path and Chroma Path in the sidebar!")
+                    else:
+                        with st.spinner("Loading existing database..."):
+                            try:
+                                # Save schema file temporarily
+                                with tempfile.NamedTemporaryFile(
+                                    delete=False, suffix=Path(schema_file.name).suffix
+                                ) as f:
+                                    f.write(schema_file.getvalue())
+                                    schema_path = f.name
+
+                                # Create pipeline
+                                pipeline = create_pipeline(
+                                    db_path=db_path,
+                                    chroma_path=chroma_path,
+                                    ollama_model=st.session_state.ollama_model,
+                                    ollama_base_url=st.session_state.ollama_url,
+                                    use_react_agent=st.session_state.use_react_agent,
+                                )
+
+                                # Load from existing
+                                pipeline.load_existing(schema_path=schema_path)
+
+                                # Parse schema for table name
+                                schema_data = yaml.safe_load(schema_content)
+                                table_name = schema_data.get("table_name", "unknown")
+
+                                # Store in session state
+                                st.session_state.pipeline = pipeline
+                                st.session_state.processed = True
+                                st.session_state.table_name = table_name
+
+                                st.success("✅ Database loaded successfully!")
+                                st.balloons()
+
+                            except FileNotFoundError as e:
+                                st.error(f"❌ {str(e)}")
+                                st.info(
+                                    "💡 Make sure you've processed data with these paths before."
+                                )
+                            except Exception as e:
+                                st.error(f"❌ Loading failed: {type(e).__name__}: {str(e)}")
+                                st.exception(e)
+        else:
+            st.subheader("Upload Dataset and Schema")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.subheader("Dataset File")
+                dataset_file = st.file_uploader(
+                    "Upload CSV or Parquet file",
+                    type=["csv", "parquet"],
+                    help="Upload your dataset file",
                 )
 
-        # Process button
-        if dataset_file is not None and schema_file is not None:
-            st.divider()
+                if dataset_file is not None:
+                    st.success(f"✅ Uploaded: {dataset_file.name}")
 
-            if st.button("🚀 Process Dataset", type="primary", use_container_width=True):
-                with st.spinner("Processing dataset..."):
-                    try:
-                        # Save uploaded files temporarily (cross-platform temp dir)
-                        with tempfile.NamedTemporaryFile(
-                            delete=False, suffix=Path(dataset_file.name).suffix
-                        ) as f:
-                            f.write(dataset_file.getvalue())
-                            dataset_path = f.name
+                    # Preview dataset (cached to avoid re-reading)
+                    df_preview = load_preview(dataset_file.getvalue(), dataset_file.name)
+                    st.dataframe(df_preview.head(10), width="stretch")
+                    st.caption(
+                        f"Preview: {len(df_preview)} rows, {len(df_preview.columns)} columns"
+                    )
 
-                        with tempfile.NamedTemporaryFile(
-                            delete=False, suffix=Path(schema_file.name).suffix
-                        ) as f:
-                            f.write(schema_file.getvalue())
-                            schema_path = f.name
+            with col2:
+                st.subheader("Schema File")
+                schema_file = st.file_uploader(
+                    "Upload YAML or JSON schema",
+                    type=["yaml", "yml", "json"],
+                    help="Upload your schema definition file",
+                    key="process_schema",
+                )
 
-                        # Parse schema for table name (reuse already-loaded content)
-                        schema_data = yaml.safe_load(schema_content)
-                        table_name = schema_data.get("table_name", "unknown")
+                if schema_file is not None:
+                    st.success(f"✅ Uploaded: {schema_file.name}")
 
-                        # Create pipeline
-                        pipeline = create_pipeline(
-                            db_path=db_path,
-                            chroma_path=chroma_path,
-                            ollama_model=st.session_state.ollama_model,
-                            ollama_base_url=st.session_state.ollama_url,
-                            use_react_agent=st.session_state.use_react_agent,
-                        )
+                    # Preview schema (cache content to avoid re-reading)
+                    schema_bytes = schema_file.getvalue()
+                    schema_content = schema_bytes.decode("utf-8")
+                    st.code(
+                        schema_content,
+                        language="yaml" if schema_file.name.endswith((".yaml", ".yml")) else "json",
+                    )
 
-                        # Process dataset
-                        pipeline.process(dataset_path=dataset_path, schema_path=schema_path)
+            # Process button
+            if dataset_file is not None and schema_file is not None:
+                st.divider()
 
-                        # Store in session state
-                        st.session_state.pipeline = pipeline
-                        st.session_state.processed = True
-                        st.session_state.table_name = table_name
+                if st.button("🚀 Process Dataset", type="primary", use_container_width=True):
+                    with st.spinner("Processing dataset..."):
+                        try:
+                            # Save uploaded files temporarily (cross-platform temp dir)
+                            with tempfile.NamedTemporaryFile(
+                                delete=False, suffix=Path(dataset_file.name).suffix
+                            ) as f:
+                                f.write(dataset_file.getvalue())
+                                dataset_path = f.name
 
-                        # Check for missing primary key and warn user
-                        if not pipeline.schema.get_primary_key_fields():
-                            st.warning(
-                                "⚠️ No primary key defined in schema. "
-                                "Auto-generated IDs will be used. "
-                                "Consider adding a primary key field for better data tracking."
+                            with tempfile.NamedTemporaryFile(
+                                delete=False, suffix=Path(schema_file.name).suffix
+                            ) as f:
+                                f.write(schema_file.getvalue())
+                                schema_path = f.name
+
+                            # Parse schema for table name (reuse already-loaded content)
+                            schema_data = yaml.safe_load(schema_content)
+                            table_name = schema_data.get("table_name", "unknown")
+
+                            # Create pipeline
+                            pipeline = create_pipeline(
+                                db_path=db_path,
+                                chroma_path=chroma_path,
+                                ollama_model=st.session_state.ollama_model,
+                                ollama_base_url=st.session_state.ollama_url,
+                                use_react_agent=st.session_state.use_react_agent,
                             )
 
-                        st.success("✅ Dataset processed successfully!")
-                        st.balloons()
+                            # Process dataset
+                            pipeline.process(dataset_path=dataset_path, schema_path=schema_path)
 
-                    except FileNotFoundError as e:
-                        st.error(f"❌ File not found: {e.filename}")
-                    except yaml.YAMLError as e:
-                        st.error(f"❌ Invalid schema file: {str(e)}")
-                    except Exception as e:
-                        st.error(f"❌ Processing failed: {type(e).__name__}: {str(e)}")
-                        st.exception(e)
+                            # Store in session state
+                            st.session_state.pipeline = pipeline
+                            st.session_state.processed = True
+                            st.session_state.table_name = table_name
+
+                            # Check for missing primary key and warn user
+                            if not pipeline.schema.get_primary_key_fields():
+                                st.warning(
+                                    "⚠️ No primary key defined in schema. "
+                                    "Auto-generated IDs will be used. "
+                                    "Consider adding a primary key field for better data tracking."
+                                )
+
+                            st.success("✅ Dataset processed successfully!")
+                            st.balloons()
+
+                        except FileNotFoundError as e:
+                            st.error(f"❌ File not found: {e.filename}")
+                        except yaml.YAMLError as e:
+                            st.error(f"❌ Invalid schema file: {str(e)}")
+                        except Exception as e:
+                            st.error(f"❌ Processing failed: {type(e).__name__}: {str(e)}")
+                            st.exception(e)
 
     with tab2:
         st.header("Ask Questions")
