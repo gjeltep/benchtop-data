@@ -42,4 +42,3 @@ def create_react_agent_workflow(
 
     logger.info("ReActAgent workflow created")
     return ReActAgentWorkflow(agent)
-

@@ -1,11 +1,13 @@
 """Constants for workflow context keys."""
 
+
 class ContextKeys:
     """
     Centralized context keys for workflow store.
 
     Eliminates magic strings and provides type safety.
     """
+
     QUERY = "query"
     ORIGINAL_QUERY = "original_query"
     REFINEMENT_ITERATION = "refinement_iteration"
@@ -20,4 +22,3 @@ class ContextKeys:
     REFLECTION = "reflection"
     SELECTED_ENGINE_INDEX = "selected_engine_index"
     SELECTED_ENGINE_INDICES = "selected_engine_indices"
-

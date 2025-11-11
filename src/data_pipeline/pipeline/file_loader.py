@@ -68,4 +68,3 @@ class FileLoader:
                 else:
                     # Let pandas infer format
                     df[field.name] = pd.to_datetime(df[field.name])
-

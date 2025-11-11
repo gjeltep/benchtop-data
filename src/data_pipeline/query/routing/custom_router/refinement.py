@@ -36,7 +36,7 @@ def _build_refinement_context(
 
     # Add missing info (limit to first 2 items)
     if missing_info:
-        info_str = ', '.join(missing_info[:2])
+        info_str = ", ".join(missing_info[:2])
         enhancements.append(f"Missing: {info_str}")
 
     # Add improvements (first item only)
@@ -45,20 +45,18 @@ def _build_refinement_context(
 
     # Add previous response if short enough
     if previous_response and len(previous_response) < 200:
-        truncated = previous_response[:config.refinement_context_length]
+        truncated = previous_response[: config.refinement_context_length]
         enhancements.append(f"Previous: {truncated}")
 
     if not enhancements:
         return query
 
-    context = '; '.join(enhancements)
+    context = "; ".join(enhancements)
     return f"{query} [Refinement context: {context}]"
 
 
 async def enhance_query_with_refinement_context(
-    ctx: Context,
-    query: str,
-    config: Optional[AgenticConfig] = None
+    ctx: Context, query: str, config: Optional[AgenticConfig] = None
 ) -> str:
     """
     Enhance a query with refinement context from workflow store.
@@ -105,4 +103,3 @@ async def enhance_query_with_refinement_context(
         logger.debug("Enhanced query with refinement context")
 
     return enhanced
-

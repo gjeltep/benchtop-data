@@ -113,7 +113,9 @@ class SchemaParser:
                 elif file_path.endswith(".json"):
                     data = json.load(f)
                 else:
-                    raise SchemaError(f"Unsupported file format: {file_path}", schema_path=file_path)
+                    raise SchemaError(
+                        f"Unsupported file format: {file_path}", schema_path=file_path
+                    )
 
             return SchemaParser.parse_dict(data)
         except FileNotFoundError:
@@ -233,7 +235,7 @@ class SchemaValidator:
             # Pandera provides detailed error messages
             logger.debug(f"Validation failed: {e}")
             # SchemaErrors has schema_errors attribute, SchemaError doesn't
-            error_list = getattr(e, 'schema_errors', [e])
+            error_list = getattr(e, "schema_errors", [e])
             for error in error_list:
                 errors.append(str(error))
             return False, errors

@@ -61,12 +61,12 @@ async def execute_sub_questions(
         # Route using hints (skip LLM selector when clear)
         if requires_sql and not requires_semantic:
             engine_index = 1
-            logger.debug(f"Sub-Q {index+1}: routing to SQL (hint-based)")
+            logger.debug(f"Sub-Q {index + 1}: routing to SQL (hint-based)")
         elif requires_semantic and not requires_sql:
             engine_index = 0
-            logger.debug(f"Sub-Q {index+1}: routing to Vector (hint-based)")
+            logger.debug(f"Sub-Q {index + 1}: routing to Vector (hint-based)")
         else:
-            logger.debug(f"Sub-Q {index+1}: using LLM selector for routing")
+            logger.debug(f"Sub-Q {index + 1}: using LLM selector for routing")
             selection_event = await selector_step_fn(ctx, question)
             engine_index = selection_event.selected_query_engines.selections[0].index
 
@@ -78,13 +78,13 @@ async def execute_sub_questions(
             if reasoning_handler:
                 reasoning_handler.log_complete_reasoning()
 
-        logger.debug(f"Sub-Q {index+1} completed")
+        logger.debug(f"Sub-Q {index + 1} completed")
         return await coerce_to_response_fn(response)
 
     # Execute all sub-questions in parallel
-    sub_question_results = await asyncio.gather(*[
-        execute_sub_question(sq, i) for i, sq in enumerate(sub_questions)
-    ])
+    sub_question_results = await asyncio.gather(
+        *[execute_sub_question(sq, i) for i, sq in enumerate(sub_questions)]
+    )
 
     logger.info(f"Completed execution of {len(sub_question_results)} sub-questions")
 

@@ -54,7 +54,7 @@ class RefinementAgent:
         improvements = ", ".join(reflection_result.suggested_improvements or [])
 
         # Reflection prompt pattern following LlamaIndex best practices
-        response_preview = current_response[:self.config.refinement_context_length]
+        response_preview = current_response[: self.config.refinement_context_length]
         reflection_section = f"""
 You already generated this response to the query:
 
@@ -63,8 +63,8 @@ You already generated this response to the query:
 ---------------------
 
 This response was evaluated and found to be:
-- Missing information: {missing_info or 'None identified'}
-- Suggested improvements: {improvements or 'None identified'}
+- Missing information: {missing_info or "None identified"}
+- Suggested improvements: {improvements or "None identified"}
 - Confidence score: {reflection_result.confidence_score:.2f}
 
 The original query was: {original_query}
@@ -77,7 +77,7 @@ Be specific and focused. Return ONLY the refined query, nothing else."""
         messages = [
             ChatMessage(
                 role=MessageRole.SYSTEM,
-                content="You are a query refinement assistant. Generate concise, focused queries that stay within the original query's scope."
+                content="You are a query refinement assistant. Generate concise, focused queries that stay within the original query's scope.",
             ),
             ChatMessage(role=MessageRole.USER, content=reflection_section),
         ]
@@ -106,10 +106,6 @@ Be specific and focused. Return ONLY the refined query, nothing else."""
 
         # Filter out common stop words and short words
         stop_words = {"that", "this", "with", "from", "about", "which", "their", "there"}
-        significant_new_words = {
-            w for w in new_words
-            if len(w) > 4 and w not in stop_words
-        }
+        significant_new_words = {w for w in new_words if len(w) > 4 and w not in stop_words}
 
         return len(significant_new_words) > self.config.hallucination_detection_threshold
-

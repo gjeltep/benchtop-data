@@ -9,6 +9,7 @@ from .reasoning import ReasoningTokenHandler
 
 class EngineType(Enum):
     """Enum for query engine types."""
+
     VECTOR = 0
     SQL = 1
 
@@ -48,4 +49,3 @@ class LLMFactory:
         if reasoning_handler:
             return ThinkingOllamaWrapper(reasoning_handler=reasoning_handler, **llm_config)
         return Ollama(**llm_config)
-

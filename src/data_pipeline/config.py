@@ -38,23 +38,16 @@ class Config:
     # Model Configuration
     llm_model: str = field(
         default_factory=lambda: os.getenv(
-            "DATA_PIPELINE_LLM_MODEL",
-            "hf.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF:Q4_K_M"
+            "DATA_PIPELINE_LLM_MODEL", "hf.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF:Q4_K_M"
         )
     )
 
     embed_model: str = field(
-        default_factory=lambda: os.getenv(
-            "DATA_PIPELINE_EMBED_MODEL",
-            "nomic-embed-text"
-        )
+        default_factory=lambda: os.getenv("DATA_PIPELINE_EMBED_MODEL", "nomic-embed-text")
     )
 
     ollama_url: str = field(
-        default_factory=lambda: os.getenv(
-            "DATA_PIPELINE_OLLAMA_URL",
-            "http://localhost:11434"
-        )
+        default_factory=lambda: os.getenv("DATA_PIPELINE_OLLAMA_URL", "http://localhost:11434")
     )
 
     # LLM Parameters
@@ -93,14 +86,10 @@ class Config:
     )
 
     # Agent Configuration
-    use_react_agent: bool = field(
-        default_factory=lambda: _get_env_bool("USE_REACT_AGENT", "false")
-    )
+    use_react_agent: bool = field(default_factory=lambda: _get_env_bool("USE_REACT_AGENT", "false"))
 
     # Database Configuration
-    db_path: Optional[str] = field(
-        default_factory=lambda: os.getenv("DATA_PIPELINE_DB_PATH")
-    )
+    db_path: Optional[str] = field(default_factory=lambda: os.getenv("DATA_PIPELINE_DB_PATH"))
 
     chroma_path: Optional[str] = field(
         default_factory=lambda: os.getenv("DATA_PIPELINE_CHROMA_PATH")
@@ -136,12 +125,24 @@ class Config:
             context_window=context_window if context_window is not None else self.context_window,
             temperature=temperature if temperature is not None else self.temperature,
             num_output=num_output if num_output is not None else self.num_output,
-            request_timeout=request_timeout if request_timeout is not None else self.request_timeout,
-            similarity_top_k=similarity_top_k if similarity_top_k is not None else self.similarity_top_k,
-            chat_history_token_limit=chat_history_token_limit if chat_history_token_limit is not None else self.chat_history_token_limit,
-            embed_batch_size=embed_batch_size if embed_batch_size is not None else self.embed_batch_size,
-            enable_reasoning_logs=enable_reasoning_logs if enable_reasoning_logs is not None else self.enable_reasoning_logs,
-            use_react_agent=use_react_agent if use_react_agent is not None else self.use_react_agent,
+            request_timeout=request_timeout
+            if request_timeout is not None
+            else self.request_timeout,
+            similarity_top_k=similarity_top_k
+            if similarity_top_k is not None
+            else self.similarity_top_k,
+            chat_history_token_limit=chat_history_token_limit
+            if chat_history_token_limit is not None
+            else self.chat_history_token_limit,
+            embed_batch_size=embed_batch_size
+            if embed_batch_size is not None
+            else self.embed_batch_size,
+            enable_reasoning_logs=enable_reasoning_logs
+            if enable_reasoning_logs is not None
+            else self.enable_reasoning_logs,
+            use_react_agent=use_react_agent
+            if use_react_agent is not None
+            else self.use_react_agent,
             db_path=db_path if db_path is not None else self.db_path,
             chroma_path=chroma_path if chroma_path is not None else self.chroma_path,
         )

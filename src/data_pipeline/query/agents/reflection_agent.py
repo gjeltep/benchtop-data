@@ -23,10 +23,15 @@ QueryMetadata = Dict[str, Any]
 
 class ReflectionResult(BaseModel):
     """Result of reflection on a query response."""
+
     is_complete: bool = Field(description="Whether the response fully answers the query")
     is_accurate: bool = Field(description="Whether the response appears accurate")
-    missing_information: List[str] = Field(default_factory=list, description="Information that seems missing")
-    suggested_improvements: List[str] = Field(default_factory=list, description="Suggestions for improving the response")
+    missing_information: List[str] = Field(
+        default_factory=list, description="Information that seems missing"
+    )
+    suggested_improvements: List[str] = Field(
+        default_factory=list, description="Suggestions for improving the response"
+    )
     confidence_score: float = Field(description="Confidence in the response quality (0-1)")
     reasoning: str = Field(description="Explanation of the reflection analysis")
     should_refine: bool = Field(description="Whether the query should be refined and re-executed")
@@ -34,6 +39,7 @@ class ReflectionResult(BaseModel):
 
 class ReflectionEvent(Event):
     """Event containing reflection results."""
+
     reflection: ReflectionResult
     original_query: str
     response: str
@@ -146,8 +152,10 @@ Note: Only suggest improvements that stay within the scope of the original query
             if not reflection.reasoning or "confidence" not in reflection.reasoning.lower():
                 reflection.reasoning += f" Low confidence score ({reflection.confidence_score:.2f}) suggests refinement may be needed."
 
-        logger.info(f"Reflection: complete={reflection.is_complete}, accurate={reflection.is_accurate}, "
-                   f"confidence={reflection.confidence_score:.2f}, refine={reflection.should_refine}")
+        logger.info(
+            f"Reflection: complete={reflection.is_complete}, accurate={reflection.is_accurate}, "
+            f"confidence={reflection.confidence_score:.2f}, refine={reflection.should_refine}"
+        )
         if reflection.missing_information:
             logger.info(f"  Missing: {', '.join(reflection.missing_information)}")
         if reflection.suggested_improvements:

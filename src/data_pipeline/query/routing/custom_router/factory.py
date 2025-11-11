@@ -41,7 +41,7 @@ class CustomRouterWorkflow:
         result = await self.workflow.run(query=query, select_multi=False)
 
         # Extract Response from StopEvent
-        if hasattr(result, 'result'):
+        if hasattr(result, "result"):
             response = result.result
             if isinstance(response, Response):
                 return response
@@ -96,4 +96,3 @@ def create_custom_router_workflow(
     )
 
     return CustomRouterWorkflow(workflow)
-

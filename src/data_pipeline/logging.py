@@ -14,6 +14,7 @@ NOISY_LOGGERS = [
     "httpx"  # HTTP client used by LlamaIndex/Ollama - logs every request
 ]
 
+
 def _suppress_noisy_loggers():
     """
     Suppress verbose logging from third-party libraries.
@@ -48,11 +49,7 @@ def setup_logging(
         format_string = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 
     logging.basicConfig(
-        level=level,
-        format=format_string,
-        datefmt='%H:%M:%S',
-        stream=sys.stderr,
-        force=True
+        level=level, format=format_string, datefmt="%H:%M:%S", stream=sys.stderr, force=True
     )
 
     # Suppress noisy third-party loggers
@@ -80,4 +77,3 @@ def get_logger(name: str) -> logging.Logger:
         setup_logging()
 
     return logging.getLogger(name)
-

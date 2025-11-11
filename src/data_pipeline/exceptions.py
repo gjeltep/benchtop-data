@@ -58,7 +58,13 @@ class ValidationError(DataPipelineError):
 class StorageError(DataPipelineError):
     """Raised when storage operations fail."""
 
-    def __init__(self, message: str, table_name: Optional[str] = None, operation: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        table_name: Optional[str] = None,
+        operation: Optional[str] = None,
+        **kwargs,
+    ):
         """
         Initialize storage error.
 
@@ -79,7 +85,9 @@ class StorageError(DataPipelineError):
 class QueryError(DataPipelineError):
     """Raised when query operations fail."""
 
-    def __init__(self, message: str, query: Optional[str] = None, engine_type: Optional[str] = None, **kwargs):
+    def __init__(
+        self, message: str, query: Optional[str] = None, engine_type: Optional[str] = None, **kwargs
+    ):
         """
         Initialize query error.
 

@@ -17,11 +17,11 @@ def extract_response_text(response: Response) -> str:
         Extracted text content
     """
     # Primary: Check response.response (synthesized answer)
-    if hasattr(response, 'response') and response.response:
+    if hasattr(response, "response") and response.response:
         return str(response.response)
 
     # Fallback: Check response_text attribute
-    if hasattr(response, 'response_text'):
+    if hasattr(response, "response_text"):
         return str(response.response_text)
 
     # Final fallback: string representation

@@ -151,7 +151,12 @@ class TestSchemaParser:
         data = {
             "table_name": "test",
             "fields": [
-                {"name": "id", "type": "integer", "description": "Primary key", "primary_key": True},
+                {
+                    "name": "id",
+                    "type": "integer",
+                    "description": "Primary key",
+                    "primary_key": True,
+                },
                 {"name": "name", "type": "string", "nullable": False, "description": "Name field"},
             ],
         }

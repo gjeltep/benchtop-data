@@ -9,6 +9,7 @@ from .prompts import CUSTOM_TEXT_TO_SQL_PROMPT, SQL_RESPONSE_SYNTHESIS_PROMPT
 
 logger = get_logger(__name__)
 
+
 def initialize_sql_engine(
     storage_repo: StorageRepository,
     table_name: str,
@@ -45,10 +46,11 @@ def initialize_sql_engine(
             response_synthesis_prompt=SQL_RESPONSE_SYNTHESIS_PROMPT,
             synthesize_response=True,  # Ensure synthesis happens natively
         )
-        logger.info(f"SQL query engine initialized for table '{table_name}' (streaming={streaming})")
+        logger.info(
+            f"SQL query engine initialized for table '{table_name}' (streaming={streaming})"
+        )
         return sql_query_engine
 
     except Exception as e:
         logger.error(f"Failed to initialize SQL query engine: {e}", exc_info=True)
         raise QueryError(f"SQL engine initialization failed: {e}") from e
-

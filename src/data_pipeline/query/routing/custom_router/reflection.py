@@ -56,11 +56,12 @@ async def reflect_and_refine(
     }
 
     # Include source node count if available
-    if response_obj and hasattr(response_obj, 'source_nodes'):
+    if response_obj and hasattr(response_obj, "source_nodes"):
         metadata["source_node_count"] = len(response_obj.source_nodes)
         vector_sources = sum(
-            1 for node in response_obj.source_nodes
-            if hasattr(node, 'score') and node.score is not None
+            1
+            for node in response_obj.source_nodes
+            if hasattr(node, "score") and node.score is not None
         )
         metadata["vector_source_count"] = vector_sources
 
@@ -69,24 +70,28 @@ async def reflect_and_refine(
     # Store reflection for potential use in refinement
     await ctx.store.set(ContextKeys.REFLECTION, reflection_result.model_dump())
 
-    logger.info(f"Reflection complete: complete={reflection_result.is_complete}, "
-               f"accurate={reflection_result.is_accurate}, "
-               f"confidence={reflection_result.confidence_score:.2f}, "
-               f"should_refine={reflection_result.should_refine}")
+    logger.info(
+        f"Reflection complete: complete={reflection_result.is_complete}, "
+        f"accurate={reflection_result.is_accurate}, "
+        f"confidence={reflection_result.confidence_score:.2f}, "
+        f"should_refine={reflection_result.should_refine}"
+    )
 
     # If reflection suggests refinement and we haven't exceeded max iterations
     if reflection_result.should_refine and iteration < config.max_refinement_iterations:
-        logger.info(f"Generating refined query based on reflection feedback (iteration {iteration + 1})...")
+        logger.info(
+            f"Generating refined query based on reflection feedback (iteration {iteration + 1})..."
+        )
 
         if reflection_result.suggested_improvements:
-            logger.info(f"Suggested improvements: {', '.join(reflection_result.suggested_improvements)}")
+            logger.info(
+                f"Suggested improvements: {', '.join(reflection_result.suggested_improvements)}"
+            )
         if reflection_result.missing_information:
             logger.info(f"Missing information: {', '.join(reflection_result.missing_information)}")
 
         # Generate refined query using refinement agent
-        refined_query = await refinement_agent.refine_query(
-            query, response, reflection_result
-        )
+        refined_query = await refinement_agent.refine_query(query, response, reflection_result)
 
         logger.info(f"Refined query: {refined_query}")
         await ctx.store.set(ContextKeys.REFINED_QUERY, refined_query)

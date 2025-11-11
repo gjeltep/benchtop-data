@@ -61,10 +61,11 @@ def initialize_vector_index(
             show_progress=True,
         )
 
-        logger.info(f"Vector index initialized for collection '{collection_name}' ({len(documents)} documents)")
+        logger.info(
+            f"Vector index initialized for collection '{collection_name}' ({len(documents)} documents)"
+        )
         return index
 
     except Exception as e:
         logger.error(f"Failed to initialize vector index: {e}", exc_info=True)
         raise QueryError(f"Vector index initialization failed: {e}") from e
-

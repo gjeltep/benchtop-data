@@ -36,10 +36,7 @@ class ReasoningTokenHandler(BaseCallbackHandler):
         Args:
             verbose: If True, logs reasoning tokens to console in real-time
         """
-        super().__init__(
-            event_starts_to_ignore=[],
-            event_ends_to_ignore=[]
-        )
+        super().__init__(event_starts_to_ignore=[], event_ends_to_ignore=[])
         self.verbose = verbose
         self.current_reasoning: str = ""
         self._buffer: str = ""  # Buffer for accumulating tokens before logging
@@ -98,7 +95,7 @@ class ReasoningTokenHandler(BaseCallbackHandler):
         self._buffer += token
 
         # Log buffer when it reaches a certain size or contains newlines
-        if len(self._buffer) >= self._buffer_size or '\n' in self._buffer:
+        if len(self._buffer) >= self._buffer_size or "\n" in self._buffer:
             self._flush_buffer()
 
     def _flush_buffer(self) -> None:
@@ -140,4 +137,3 @@ class ReasoningTokenHandler(BaseCallbackHandler):
     def end_trace(self, trace_id: Optional[str] = None, trace_map: Optional[dict] = None) -> None:
         """End a trace (required by BaseCallbackHandler)."""
         pass
-

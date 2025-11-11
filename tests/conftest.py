@@ -101,7 +101,9 @@ def comprehensive_dataframe():
             "quantity": [100, 50, 200],
             "active": [True, False, True],
             "created_date": pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
-            "updated_at": pd.to_datetime(["2024-01-15 10:30:00", "2024-01-16 14:45:00", "2024-01-17 09:15:00"]),
+            "updated_at": pd.to_datetime(
+                ["2024-01-15 10:30:00", "2024-01-16 14:45:00", "2024-01-17 09:15:00"]
+            ),
         }
     )
 

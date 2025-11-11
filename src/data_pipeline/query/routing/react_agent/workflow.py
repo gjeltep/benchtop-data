@@ -41,10 +41,10 @@ class ReActAgentWorkflow:
         result = await handler
 
         # Extract response from AgentOutput
-        if hasattr(result, 'response'):
+        if hasattr(result, "response"):
             content = (
                 result.response.content
-                if hasattr(result.response, 'content')
+                if hasattr(result.response, "content")
                 else str(result.response)
             )
         else:

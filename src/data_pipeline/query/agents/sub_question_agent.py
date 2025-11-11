@@ -19,22 +19,29 @@ logger = get_logger(__name__)
 
 class SubQuestion(BaseModel):
     """A single sub-question decomposed from a complex query."""
+
     question: str = Field(description="The sub-question to execute")
     reasoning: str = Field(description="Why this sub-question is needed")
     requires_sql: bool = Field(description="Whether this sub-question requires SQL analysis")
-    requires_semantic: bool = Field(description="Whether this sub-question requires semantic search")
+    requires_semantic: bool = Field(
+        description="Whether this sub-question requires semantic search"
+    )
 
 
 class QueryDecomposition(BaseModel):
     """Result of decomposing a complex query."""
+
     needs_decomposition: bool = Field(description="Whether the query should be decomposed")
     original_query: str = Field(description="The original query")
-    sub_questions: List[SubQuestion] = Field(default_factory=list, description="List of sub-questions")
+    sub_questions: List[SubQuestion] = Field(
+        default_factory=list, description="List of sub-questions"
+    )
     reasoning: str = Field(description="Explanation of why decomposition was or wasn't needed")
 
 
 class SubQuestionEvent(Event):
     """Event containing decomposed sub-questions."""
+
     decomposition: QueryDecomposition
     original_query: str
 
@@ -113,6 +120,8 @@ Be concise. Only decompose if the query truly has multiple distinct parts that b
         if decomposition.needs_decomposition:
             logger.info(f"  Decomposed into {len(decomposition.sub_questions)} sub-questions")
             for i, sq in enumerate(decomposition.sub_questions, 1):
-                logger.info(f"    {i}. {sq.question} (SQL: {sq.requires_sql}, Semantic: {sq.requires_semantic})")
+                logger.info(
+                    f"    {i}. {sq.question} (SQL: {sq.requires_sql}, Semantic: {sq.requires_semantic})"
+                )
 
         return decomposition

@@ -23,8 +23,8 @@ class ThinkingOllamaWrapper(Ollama):
     def __init__(self, reasoning_handler=None, **kwargs):
         """Initialize wrapper."""
         super().__init__(**kwargs)
-        object.__setattr__(self, 'reasoning_handler', reasoning_handler)
-        object.__setattr__(self, '_recent_text', deque(maxlen=1000))  # Track recent output
+        object.__setattr__(self, "reasoning_handler", reasoning_handler)
+        object.__setattr__(self, "_recent_text", deque(maxlen=1000))  # Track recent output
 
     def _check_repetition(self, text: str) -> bool:
         """
@@ -37,12 +37,12 @@ class ThinkingOllamaWrapper(Ollama):
             return False
 
         # Get recent text window
-        recent = "".join(self._recent_text)[-self.RECENT_TEXT_WINDOW:]
+        recent = "".join(self._recent_text)[-self.RECENT_TEXT_WINDOW :]
         if not recent or len(recent) < 100:
             return False
 
         # Split into meaningful sentences
-        sentences = [s.strip() for s in re.split(r'[.!?\n]+', recent) if len(s.strip()) > 20]
+        sentences = [s.strip() for s in re.split(r"[.!?\n]+", recent) if len(s.strip()) > 20]
 
         if len(sentences) < 3:
             return False
@@ -52,7 +52,9 @@ class ThinkingOllamaWrapper(Ollama):
         repetition_count = recent.count(last_sentence)
 
         if repetition_count >= self.REPETITION_THRESHOLD:
-            logger.warning(f"Detected repetitive output (sentence repeated {repetition_count} times)")
+            logger.warning(
+                f"Detected repetitive output (sentence repeated {repetition_count} times)"
+            )
             return True
 
         return False
@@ -68,7 +70,11 @@ class ThinkingOllamaWrapper(Ollama):
 
     def _extract_thinking_tokens(self, chunk):
         """Extract thinking tokens from a chunk and append to handler."""
-        if not self.reasoning_handler or not hasattr(chunk, "additional_kwargs") or not chunk.additional_kwargs:
+        if (
+            not self.reasoning_handler
+            or not hasattr(chunk, "additional_kwargs")
+            or not chunk.additional_kwargs
+        ):
             return
         for key in self.THINKING_TOKEN_KEYS:
             if key in chunk.additional_kwargs:
@@ -88,6 +94,7 @@ class ThinkingOllamaWrapper(Ollama):
 
     def _wrap_stream_generator(self, stream: AsyncGenerator) -> AsyncGenerator:
         """Yield chunks while capturing thinking tokens and logging completion."""
+
         async def generator():
             try:
                 accumulated_text = ""
@@ -112,6 +119,7 @@ class ThinkingOllamaWrapper(Ollama):
                 self._recent_text.clear()
                 if self.reasoning_handler:
                     self.reasoning_handler.log_complete_reasoning()
+
         return generator()
 
     async def astream_chat(self, messages: List[ChatMessage], **kwargs):

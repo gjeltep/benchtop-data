@@ -150,4 +150,3 @@ def create_query_workflow(
 
     else:
         raise ValueError(f"Unknown workflow type: {workflow_type}")
-

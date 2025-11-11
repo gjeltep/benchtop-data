@@ -1,6 +1,7 @@
 # CRITICAL: Apply nest_asyncio FIRST, before any other imports
 # This must happen before Streamlit or any async code is imported
 import nest_asyncio
+
 nest_asyncio.apply()
 
 import streamlit as st
@@ -15,12 +16,14 @@ from data_pipeline.logging import setup_logging
 # Initialize logging with HTTP log suppression
 setup_logging(suppress_http_logs=True)
 
+
 @st.cache_data
 def load_preview(file_bytes: bytes, filename: str) -> pd.DataFrame:
     """Cache file preview to avoid re-reading on every rerun."""
     if filename.endswith(".csv"):
         return pd.read_csv(pd.io.common.BytesIO(file_bytes))
     return pd.read_parquet(pd.io.common.BytesIO(file_bytes))
+
 
 def main():
     st.set_page_config(page_title="Data Pipeline", page_icon="📊", layout="wide")
@@ -141,11 +144,15 @@ def main():
                 with st.spinner("Processing dataset..."):
                     try:
                         # Save uploaded files temporarily (cross-platform temp dir)
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(dataset_file.name).suffix) as f:
+                        with tempfile.NamedTemporaryFile(
+                            delete=False, suffix=Path(dataset_file.name).suffix
+                        ) as f:
                             f.write(dataset_file.getvalue())
                             dataset_path = f.name
 
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(schema_file.name).suffix) as f:
+                        with tempfile.NamedTemporaryFile(
+                            delete=False, suffix=Path(schema_file.name).suffix
+                        ) as f:
                             f.write(schema_file.getvalue())
                             schema_path = f.name
 
@@ -289,7 +296,11 @@ def main():
                                         st.info(f"🔧 Engine: {engine_type}")
 
                                     # Show workflow type
-                                    workflow_type = "ReAct Agent" if st.session_state.use_react_agent else "Custom Workflow (with sub-questions & reflection)"
+                                    workflow_type = (
+                                        "ReAct Agent"
+                                        if st.session_state.use_react_agent
+                                        else "Custom Workflow (with sub-questions & reflection)"
+                                    )
                                     st.caption(f"Workflow: {workflow_type}")
 
                                     # Show SQL query if captured
@@ -307,10 +318,14 @@ def main():
 
                                     st.caption(f"Model: {st.session_state.ollama_model}")
                                 else:
-                                    st.code(f"Model: {st.session_state.ollama_model}\nQuery: {query}")
+                                    st.code(
+                                        f"Model: {st.session_state.ollama_model}\nQuery: {query}"
+                                    )
 
                         except ConnectionError:
-                            st.error(f"❌ Cannot connect to Ollama at {st.session_state.ollama_url}. Is it running?")
+                            st.error(
+                                f"❌ Cannot connect to Ollama at {st.session_state.ollama_url}. Is it running?"
+                            )
                         except KeyError as e:
                             st.error(f"❌ Missing required field: {str(e)}")
                         except Exception as e:
@@ -356,6 +371,7 @@ def main():
             except Exception as e:
                 st.error(f"❌ Failed to load dataset: {type(e).__name__}: {str(e)}")
                 st.exception(e)
+
 
 if __name__ == "__main__":
     main()

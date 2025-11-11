@@ -41,17 +41,20 @@ logger = get_logger(__name__)
 
 class QueryEngineSelectionEvent(Event):
     """Result of selecting the query engine tools."""
+
     selected_query_engines: SelectorResult
 
 
 class SynthesizeEvent(Event):
     """Event for synthesizing the response from different query engines."""
+
     result: List[Response]
     selected_query_engines: SelectorResult
 
 
 class ReflectionCompleteEvent(Event):
     """Event after reflection is complete."""
+
     reflection_result: ReflectionResult  # Store ReflectionResult directly, not ReflectionEvent
     original_query: str
     response: str
@@ -60,6 +63,7 @@ class ReflectionCompleteEvent(Event):
 
 class SubQuestionExecutionEvent(Event):
     """Event containing results from executing all sub-questions."""
+
     sub_question_results: List[Response]
     sub_questions: List[SubQuestionDict]
     original_query: str
@@ -67,6 +71,7 @@ class SubQuestionExecutionEvent(Event):
 
 class RefinementEvent(Event):
     """Event for query refinement based on reflection."""
+
     refined_query: str
     original_query: str
     refinement_reason: str
@@ -100,7 +105,7 @@ class RouterQueryEngineWorkflow(Workflow):
         summarizer=None,
         query_engine_tools=None,
         reflection_threshold=0.7,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize router workflow.
@@ -120,7 +125,9 @@ class RouterQueryEngineWorkflow(Workflow):
         self.reasoning_handler = reasoning_handler
         self.llm = llm  # Store LLM as instance var, not in context (avoids deepcopy issues)
         self.summarizer = summarizer  # Store summarizer as instance var (it contains LLM)
-        self.query_engine_tools = query_engine_tools  # Store tools as instance var (they contain LLMs)
+        self.query_engine_tools = (
+            query_engine_tools  # Store tools as instance var (they contain LLMs)
+        )
         self.selected_engine_index = None  # Track which engine was selected (0 = vector, 1 = SQL)
 
         # Initialize config
@@ -184,8 +191,10 @@ class RouterQueryEngineWorkflow(Workflow):
         logger.info(f"✓ Decomposed into {len(decomposition.sub_questions)} sub-questions")
         logger.info("=" * 70)
 
-        self._log_step("STEP 2: PARALLEL SUB-QUESTION EXECUTION",
-                      f"Executing {len(decomposition.sub_questions)} sub-questions...")
+        self._log_step(
+            "STEP 2: PARALLEL SUB-QUESTION EXECUTION",
+            f"Executing {len(decomposition.sub_questions)} sub-questions...",
+        )
         result = await execute_sub_questions(
             sub_questions=decomposition.sub_questions,
             original_query=query,
@@ -220,13 +229,9 @@ class RouterQueryEngineWorkflow(Workflow):
         selector = LLMSingleSelector.from_defaults(llm=self.llm)
 
         # Get metadata for routing decision
-        query_engines_metadata = [
-            tool.metadata for tool in self.query_engine_tools
-        ]
+        query_engines_metadata = [tool.metadata for tool in self.query_engine_tools]
 
-        selected_query_engines = await selector.aselect(
-            query_engines_metadata, query
-        )
+        selected_query_engines = await selector.aselect(query_engines_metadata, query)
 
         logger.info(f"✓ Router selected {len(selected_query_engines.selections)} engine(s)")
         for selection in selected_query_engines.selections:
@@ -234,17 +239,13 @@ class RouterQueryEngineWorkflow(Workflow):
             logger.info(f"  → {engine_name} Engine: {selection.reason[:80]}...")
         logger.info("=" * 70)
 
-        return QueryEngineSelectionEvent(
-            selected_query_engines=selected_query_engines
-        )
+        return QueryEngineSelectionEvent(selected_query_engines=selected_query_engines)
 
     async def _coerce_to_response(self, response) -> Response:
         """Normalize different response types into a standard Response."""
         return await coerce_response(response)
 
-    async def _acombine_responses(
-        self, responses: List[Response], query: str
-    ) -> Response:
+    async def _acombine_responses(self, responses: List[Response], query: str) -> Response:
         """
         Combine multiple responses following LlamaIndex best practices.
 
@@ -284,8 +285,10 @@ class RouterQueryEngineWorkflow(Workflow):
         sub_question_results = ev.sub_question_results
         sub_questions = ev.sub_questions
 
-        self._log_step("STEP 3: SUB-QUESTION SYNTHESIS",
-                       f"Synthesizing {len(sub_question_results)} sub-question results into final answer...")
+        self._log_step(
+            "STEP 3: SUB-QUESTION SYNTHESIS",
+            f"Synthesizing {len(sub_question_results)} sub-question results into final answer...",
+        )
 
         # Build context for synthesis
         response_strs = []
@@ -315,7 +318,9 @@ class RouterQueryEngineWorkflow(Workflow):
 
         return SynthesizeEvent(
             result=[synthesized],
-            selected_query_engines=SelectorResult(selections=[SingleSelection(index=0, reason="Sub-question synthesis")]),
+            selected_query_engines=SelectorResult(
+                selections=[SingleSelection(index=0, reason="Sub-question synthesis")]
+            ),
         )
 
     @step
@@ -389,9 +394,7 @@ class RouterQueryEngineWorkflow(Workflow):
         else:
             # Multiple responses - synthesize or combine
             logger.info("Multiple responses - synthesizing...")
-            final_response = await self._acombine_responses(
-                responses, query
-            )
+            final_response = await self._acombine_responses(responses, query)
             logger.info(f"✓ Synthesis complete: {len(str(final_response))} chars")
 
         # Add metadata following LlamaIndex best practices
@@ -415,7 +418,7 @@ class RouterQueryEngineWorkflow(Workflow):
         refinement_iteration = await ctx.store.get(ContextKeys.REFINEMENT_ITERATION, default=0)
         self._log_step(
             f"STEP: REFLECTION & QUALITY ASSESSMENT (Iteration {refinement_iteration + 1})",
-            "Evaluating response quality..."
+            "Evaluating response quality...",
         )
         reflection_result = await reflect_and_refine(
             reflection_agent=self.reflection_agent,
@@ -435,11 +438,8 @@ class RouterQueryEngineWorkflow(Workflow):
 
         return reflection_result
 
-
     @step
-    async def finalize(
-        self, ctx: Context, ev: ReflectionCompleteEvent
-    ) -> StopEvent:
+    async def finalize(self, ctx: Context, ev: ReflectionCompleteEvent) -> StopEvent:
         """
         Final step after reflection - returns the response.
 
@@ -448,4 +448,3 @@ class RouterQueryEngineWorkflow(Workflow):
         """
         self._log_step("STEP: FINAL RESPONSE", "Workflow complete - returning final answer")
         return StopEvent(result=ev.final_response)
-

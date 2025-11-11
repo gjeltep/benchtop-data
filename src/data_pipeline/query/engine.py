@@ -18,6 +18,7 @@ from ..config import Config
 
 logger = get_logger(__name__)
 
+
 class QueryEngine:
     def __init__(
         self,
@@ -38,7 +39,9 @@ class QueryEngine:
         self.enable_chat_history = enable_chat_history
 
         # Set up reasoning handler if enabled
-        self.reasoning_handler = self._setup_reasoning_handler() if self.config.enable_reasoning_logs else None
+        self.reasoning_handler = (
+            self._setup_reasoning_handler() if self.config.enable_reasoning_logs else None
+        )
 
         # Create LLM using factory pattern
         self.llm = LLMFactory.create(
@@ -75,7 +78,8 @@ class QueryEngine:
         """Set up reasoning token handler and register with LlamaIndex callbacks."""
         handler = ReasoningTokenHandler(verbose=True)
         existing_handlers = [
-            h for h in (Settings.callback_manager.handlers if Settings.callback_manager else [])
+            h
+            for h in (Settings.callback_manager.handlers if Settings.callback_manager else [])
             if not isinstance(h, ReasoningTokenHandler)
         ]
         Settings.callback_manager = CallbackManager(existing_handlers + [handler])
@@ -168,10 +172,14 @@ class QueryEngine:
         agentic_config = AgenticConfig()
         context_parts = [
             f"{'User' if msg.role == MessageRole.USER else 'Assistant'}: {msg.content}"
-            for msg in messages[-agentic_config.chat_history_context_size:]
+            for msg in messages[-agentic_config.chat_history_context_size :]
         ]
 
-        return f"Previous conversation:\n{'\n'.join(context_parts)}\n\nCurrent question: {question}" if context_parts else question
+        return (
+            f"Previous conversation:\n{'\n'.join(context_parts)}\n\nCurrent question: {question}"
+            if context_parts
+            else question
+        )
 
     def ask(self, question: str, return_metadata: bool = False) -> Union[str, Dict[str, Any]]:
         """
@@ -244,7 +252,6 @@ class QueryEngine:
             self.chat_memory.put(ChatMessage(role=MessageRole.ASSISTANT, content=answer))
 
         return {"answer": answer, "metadata": metadata} if return_metadata else answer
-
 
     def get_chat_history(self) -> List[Dict[str, str]]:
         """
